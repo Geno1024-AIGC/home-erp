@@ -61,6 +61,7 @@ Examples:
 
 - Build system: **Gradle KTS** (`build.gradle.kts`, `settings.gradle.kts`)
 - Primary language: **Kotlin**
+- Java toolchain: **JDK 25** (source from `~/.jdks`, wired via `org.gradle.java.installations.paths` in `gradle.properties`); all modules use `jvmToolchain(25)`.
 - Dependency policy: implement features yourself wherever reasonable; the **Kotlin standard library only** by default. Any third-party dependency must be justified and re-considered carefully before adding. No new dependency without weighing its cost against a hand-rolled solution.
 
 ## Package Convention
