@@ -31,7 +31,7 @@ Planned for the first release; **each feature is one swrepo module**:
 
 ## Storage & HTTP Policy
 
-- **Star persistence**: hand-rolled lightweight storage using **Kotlin stdlib only** (e.g. append-only log + in-memory index); no external database dependency.
+- **Star persistence**: hand-rolled lightweight storage in `swrepo/store` (`g.sw.store`): append-only WAL (one text line per record, `seq\top\tcollection\tid\tpayload`, id/payload Base64) + in-memory index rebuilt by replay, force-to-disk per append, inline compaction when dead records reach live records; no external database dependency.
 - **HTTP API**: use only the JDK built-in `com.sun.net.httpserver.HttpServer`; no web framework.
 - **Browser satellite**: plain native HTML/CSS/JS front end speaking to the HTTP API; no front-end framework.
 
