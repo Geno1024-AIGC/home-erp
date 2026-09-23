@@ -21,12 +21,12 @@ Feature modules live in `swrepo/` as Gradle sub-projects — a monorepo software
 | `swrepo:inventory` | `g.sw.erp.inventory` | household items & stock |
 | `swrepo:finances` | `g.sw.erp.finances` | home bills & budget |
 | `swrepo:chores` | `g.sw.erp.chores` | housework & schedule |
-| `swrepo:store` | `g.sw.store` | lightweight append-only-log database |
+| `swrepo:db` | `g.sw.db` | lightweight append-only-log database |
 | `star` | `g.erp.star` | the Star application: assembles modules onto one JDK `HttpServer` |
 
 ## Storage
 
-The simple database lives in `swrepo/store` (`g.sw.store`), **Kotlin stdlib only**:
+The simple database lives in `swrepo/db` (`g.sw.db`), **Kotlin stdlib only**:
 
 - **Append-only write-ahead log**: one text line per record — `seq\top\tcollection\tid\tpayload` (`id` and `payload` Base64-encoded, so any bytes/newlines are safe).
 - Operators: `P` = put/upsert, `D` = delete (tombstone).
@@ -35,8 +35,8 @@ The simple database lives in `swrepo/store` (`g.sw.store`), **Kotlin stdlib only
 - Torn/corrupt tail lines are truncated on replay (crash-safe for partial writes).
 
 ```kotlin
-Store.open(Path.of("data")).use { store ->
-    val family = store.collection("family")
+Db.open(Path.of("data")).use { db ->
+    val family = db.collection("family")
     family.put("alice", "Alice".encodeToByteArray())
     family.get("alice")
     family.delete("bob")
@@ -50,7 +50,7 @@ Requires **JDK 25** (sourced from `~/.jdks` via `gradle.properties`); Gradle wra
 ```bash
 ./gradlew build     # compile everything; bumps each module's pack counter
 ./gradlew run       # start the Star on http://localhost:8080
-./gradlew :swrepo:store:smoke   # run the store self-test
+./gradlew :swrepo:db:smoke   # run the db self-test
 ```
 
 Sample endpoints served by the Star:

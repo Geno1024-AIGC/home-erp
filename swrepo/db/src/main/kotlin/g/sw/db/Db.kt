@@ -1,4 +1,4 @@
-package g.sw.store
+package g.sw.db
 
 import java.io.Closeable
 import java.nio.ByteBuffer
@@ -10,7 +10,7 @@ import java.nio.file.StandardCopyOption
 import java.nio.file.StandardOpenOption
 import java.util.Base64
 
-class Store private constructor(private val dir: Path) : Closeable {
+class Db private constructor(private val dir: Path) : Closeable {
 
     private val lock = Any()
 
@@ -185,21 +185,21 @@ class Store private constructor(private val dir: Path) : Closeable {
     }
 
     class Collection internal constructor(
-        private val store: Store,
+        private val db: Db,
         val name: String,
     ) {
-        fun get(id: String): ByteArray? = store.get(name, id)
-        fun put(id: String, blob: ByteArray) = store.put(name, id, blob)
-        fun delete(id: String) = store.delete(name, id)
-        val size: Int get() = store.size(name)
-        fun ids(): Set<String> = store.ids(name)
-        fun entries(): List<Pair<String, ByteArray>> = store.entries(name)
+        fun get(id: String): ByteArray? = db.get(name, id)
+        fun put(id: String, blob: ByteArray) = db.put(name, id, blob)
+        fun delete(id: String) = db.delete(name, id)
+        val size: Int get() = db.size(name)
+        fun ids(): Set<String> = db.ids(name)
+        fun entries(): List<Pair<String, ByteArray>> = db.entries(name)
     }
 
     companion object {
         private const val LOG = "data.log"
         private val NAME = Regex("[a-z0-9_-]+")
 
-        fun open(dir: Path): Store = Store(dir)
+        fun open(dir: Path): Db = Db(dir)
     }
 }

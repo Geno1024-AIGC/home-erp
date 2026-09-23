@@ -9,6 +9,6 @@ tasks.test {
 
 tasks.register<JavaExec>("smoke") {
     group = "verification"
-    mainClass.set("g.sw.store.StoreSmoke")
+    mainClass.set("g.sw.db.DbSmoke")
     classpath = sourceSets.named("test").get().runtimeClasspath
 }
