@@ -39,6 +39,8 @@ object DbSmoke {
             check(people.get("martin", Person::class.java) == Person("Martin", 45, emptyList()))
             check(people.get("carol", String::class.java) == null)
             check(people.get("missing", Person::class.java) == null)
+            val carolObj: Person? = people.getObject("carol")
+            check(carolObj == Person("Carol", 30, listOf("guest", "cook")))
             people.delete("martin")
         }
 

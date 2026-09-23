@@ -51,7 +51,9 @@ data class Person(val name: String, val age: Int) : java.io.Serializable
 Db.open(Path.of("data")).use { db ->
     val people = db.collection("people")
     people.put("carol", Person("Carol", 30))
-    val carol = people.get("carol", Person::class.java)   // type-checked: null if not a Person
+    // type is inferred from the target variable — no class literal needed
+    val carol: Person? = people.getObject("carol")
+    // or explicit: people.get("carol", Person::class.java)
 }
 ```
 

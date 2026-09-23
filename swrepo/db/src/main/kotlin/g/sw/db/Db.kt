@@ -195,6 +195,8 @@ class Db private constructor(private val dir: Path) : Closeable {
         fun <T : Serializable> put(id: String, value: T) = db.put(name, id, Serde.encode(value))
         fun <T> get(id: String, type: Class<T>): T? = db.get(name, id)?.let { Serde.decode(it, type) }
 
+        inline fun <reified T : Any> getObject(id: String): T? = get(id, T::class.java)
+
         fun delete(id: String) = db.delete(name, id)
         val size: Int get() = db.size(name)
         fun ids(): Set<String> = db.ids(name)
