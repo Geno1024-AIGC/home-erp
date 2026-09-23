@@ -43,10 +43,16 @@ Db.open(Path.of("data")).use { db ->
 }
 ```
 
-**Direct data-class IO**: any `Serializable` data class goes in/out as-is via Java serialization (stdlib only). The class must implement `java.io.Serializable` (declare a `serialVersionUID` for stability).
+**Direct data-class IO**: any plain data class goes in/out as-is — **no annotation, no interface, no `Serializable`**. `g.sw.db.Codec` walks the class's fields via reflection (stdlib only) and encodes each value in a compact tagged binary format:
+
+- **Native raw encoding** for primitives and `String` (performance: no boxed reflection in the hot path).
+- **Special-cased common classes** — no reflection, no library needed:
+  - date/time: `LocalDate`, `LocalTime`, `LocalDateTime`, `Instant`, `ZonedDateTime`, `OffsetDateTime`, `Period`, `Duration`, `Year`, `YearMonth`, `MonthDay`, `ZoneId`, legacy `java.util.Date`;
+  - numeric/misc: `BigDecimal`, `BigInteger`, `UUID`, enums;
+  - collections: `List`, `Set`, `Map` (recursively, any nesting).
 
 ```kotlin
-data class Person(val name: String, val age: Int) : java.io.Serializable
+data class Person(val name: String, val age: Int)   // plain data class, nothing else
 
 Db.open(Path.of("data")).use { db ->
     val people = db.collection("people")
@@ -56,6 +62,10 @@ Db.open(Path.of("data")).use { db ->
     // or explicit: people.get("carol", Person::class.java)
 }
 ```
+
+Notes:
+- Field metadata (reflection) is cached per class; `getObject`/`get` are shared by all threads through a per-collection lock.
+- The payload carries the class name and field names, so normalize a record by re-`put` after changing a data class's shape — old blobs won't match the new constructor.
 
 ## Build & run
 

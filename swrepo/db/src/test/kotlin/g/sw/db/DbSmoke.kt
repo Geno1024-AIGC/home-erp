@@ -1,11 +1,30 @@
 package g.sw.db
 
-import java.io.Serializable
 import java.nio.file.Files
 import java.nio.file.StandardOpenOption
+import java.time.Duration
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.Period
+import java.time.ZoneId
+import java.math.BigDecimal
 import kotlin.io.path.createTempDirectory
 
-data class Person(val name: String, val age: Int, val tags: List<String>) : Serializable
+data class Person(val name: String, val age: Int, val tags: List<String>)
+
+enum class Role { GUEST, COOK, ADMIN }
+
+data class Event(
+    val title: String,
+    val at: LocalDateTime,
+    val day: LocalDate,
+    val zone: ZoneId,
+    val cost: BigDecimal,
+    val roles: List<Role>,
+    val meta: Map<String, String>,
+    val wait: Duration,
+    val span: Period,
+)
 
 object DbSmoke {
     @JvmStatic
@@ -49,6 +68,30 @@ object DbSmoke {
             check(people.size == 1)
             check(people.get("carol", Person::class.java) == Person("Carol", 30, listOf("guest", "cook")))
             check(people.get("martin", Person::class.java) == null)
+        }
+
+        val dinner = Event(
+            "dinner",
+            LocalDateTime.of(2026, 9, 23, 19, 30),
+            LocalDate.of(2026, 9, 23),
+            ZoneId.of("Asia/Shanghai"),
+            BigDecimal("88.50"),
+            listOf(Role.GUEST, Role.COOK),
+            mapOf("venue" to "home"),
+            Duration.ofHours(2),
+            Period.of(1, 2, 3),
+        )
+
+        Db.open(dir).use { db ->
+            val events = db.collection("events")
+            events.put("dinner", dinner)
+            check(events.get("dinner", Event::class.java) == dinner)
+            val again: Event? = events.getObject("dinner")
+            check(again == dinner)
+        }
+
+        Db.open(dir).use { db ->
+            check(db.collection("events").get("dinner", Event::class.java) == dinner)
         }
 
         Db.open(dir).use { db ->
