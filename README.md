@@ -43,6 +43,18 @@ Db.open(Path.of("data")).use { db ->
 }
 ```
 
+**Direct data-class IO**: any `Serializable` data class goes in/out as-is via Java serialization (stdlib only). The class must implement `java.io.Serializable` (declare a `serialVersionUID` for stability).
+
+```kotlin
+data class Person(val name: String, val age: Int) : java.io.Serializable
+
+Db.open(Path.of("data")).use { db ->
+    val people = db.collection("people")
+    people.put("carol", Person("Carol", 30))
+    val carol = people.get("carol", Person::class.java)   // type-checked: null if not a Person
+}
+```
+
 ## Build & run
 
 Requires **JDK 25** (sourced from `~/.jdks` via `gradle.properties`); Gradle wrapper is **9.7.1**.

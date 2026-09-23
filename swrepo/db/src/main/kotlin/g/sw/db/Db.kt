@@ -1,6 +1,7 @@
 package g.sw.db
 
 import java.io.Closeable
+import java.io.Serializable
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
 import java.nio.charset.StandardCharsets
@@ -190,6 +191,10 @@ class Db private constructor(private val dir: Path) : Closeable {
     ) {
         fun get(id: String): ByteArray? = db.get(name, id)
         fun put(id: String, blob: ByteArray) = db.put(name, id, blob)
+
+        fun <T : Serializable> put(id: String, value: T) = db.put(name, id, Serde.encode(value))
+        fun <T> get(id: String, type: Class<T>): T? = db.get(name, id)?.let { Serde.decode(it, type) }
+
         fun delete(id: String) = db.delete(name, id)
         val size: Int get() = db.size(name)
         fun ids(): Set<String> = db.ids(name)

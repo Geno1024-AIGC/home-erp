@@ -1,8 +1,11 @@
 package g.sw.db
 
+import java.io.Serializable
 import java.nio.file.Files
 import java.nio.file.StandardOpenOption
 import kotlin.io.path.createTempDirectory
+
+data class Person(val name: String, val age: Int, val tags: List<String>) : Serializable
 
 object DbSmoke {
     @JvmStatic
@@ -26,6 +29,24 @@ object DbSmoke {
             val family = db.collection("family")
             check(family.size == 1)
             check(family.get("alice").contentEquals("Alice".encodeToByteArray()))
+        }
+
+        Db.open(dir).use { db ->
+            val people = db.collection("people")
+            people.put("carol", Person("Carol", 30, listOf("guest", "cook")))
+            people.put("martin", Person("Martin", 45, emptyList()))
+            check(people.get("carol", Person::class.java) == Person("Carol", 30, listOf("guest", "cook")))
+            check(people.get("martin", Person::class.java) == Person("Martin", 45, emptyList()))
+            check(people.get("carol", String::class.java) == null)
+            check(people.get("missing", Person::class.java) == null)
+            people.delete("martin")
+        }
+
+        Db.open(dir).use { db ->
+            val people = db.collection("people")
+            check(people.size == 1)
+            check(people.get("carol", Person::class.java) == Person("Carol", 30, listOf("guest", "cook")))
+            check(people.get("martin", Person::class.java) == null)
         }
 
         Db.open(dir).use { db ->
