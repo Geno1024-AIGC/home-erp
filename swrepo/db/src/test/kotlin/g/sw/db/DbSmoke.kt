@@ -12,6 +12,8 @@ import kotlin.io.path.createTempDirectory
 
 data class Person(val name: String, val age: Int, val tags: List<String>)
 
+data class Recurring(val title: String, val freq: String)
+
 enum class Role { GUEST, COOK, ADMIN }
 
 data class Event(
@@ -139,6 +141,24 @@ object DbSmoke {
             val family = db.collection("family")
             check(family.size == 1)
             check(family.get("alice").contentEquals("Alice".encodeToByteArray()))
+        }
+
+        Db.open(dir).use { db ->
+            val tasks = db.collection("tasks", Recurring::class.java)
+            tasks.put("t1", Recurring("cleaning", "weekly"))
+            check(tasks.get("t1") == Recurring("cleaning", "weekly"))
+            check(tasks.getObject("t1") == Recurring("cleaning", "weekly"))
+        }
+
+        Db.open(dir).use { db ->
+            val tasks = db.collection("tasks", Recurring::class.java)
+            check(tasks.size == 1)
+            check(tasks.get("t1") == Recurring("cleaning", "weekly"))
+            check(db.schema("tasks") == Recurring::class.java)
+            val people = db.collection("people", Person::class.java)
+            check(people.get("carol") == Person("Carol", 30, listOf("guest", "cook")))
+            val wrong = db.collection("people", String::class.java)
+            check(runCatching { wrong.get("carol") }.isFailure)
         }
 
         println("[smoke] all checks passed")

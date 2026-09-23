@@ -29,7 +29,7 @@ Feature modules live in `swrepo/` as Gradle sub-projects — a monorepo software
 The simple database lives in `swrepo/db` (`g.sw.db`), **Kotlin stdlib only**:
 
 - **Append-only write-ahead log**: one text line per record — `seq\top\tcollection\tid\tpayload` (`id` and `payload` Base64-encoded, so any bytes/newlines are safe).
-- Operators: `P` = put/upsert, `D` = delete (tombstone).
+- Operators: `P` = put/upsert, `D` = delete (tombstone), `S` = schema declaration (records which class a collection holds).
 - **In-memory index** rebuilt by replaying the log on open; each append is `force`d to disk before the index is updated in memory.
 - Auto-compaction: when the number of dead records reaches the number of live records, the log is rewritten in place.
 - Torn/corrupt tail lines are truncated on replay (crash-safe for partial writes).
@@ -55,13 +55,17 @@ Db.open(Path.of("data")).use { db ->
 data class Person(val name: String, val age: Int)   // plain data class, nothing else
 
 Db.open(Path.of("data")).use { db ->
-    val people = db.collection("people")
+    val people = db.collection("people")                    // untyped: pass the class per call
     people.put("carol", Person("Carol", 30))
-    // type is inferred from the target variable — no class literal needed
-    val carol: Person? = people.getObject("carol")
-    // or explicit: people.get("carol", Person::class.java)
+    val carol: Person? = people.get("carol", Person::class.java)
+
+    val typed = db.collection("people", Person::class.java) // typed: class is recorded per collection
+    typed.put("carol", Person("Carol", 30))
+    val again: Person? = typed.get("carol")                 // no class literal needed
 }
 ```
+
+A collection's schema is written as an `S` record on first typed use and survives replay and compaction. Declaring a collection with a *different* class than stored throws immediately — drift is caught at open time instead of failing reads. Use the untyped `collection(name)` for raw bytes only.
 
 **Binary attachments stay out of the DB**: records hold only a relative attachment key; the bytes live under the data folder's `files/` and are moved in/out only through `Db`, so **one data folder is the complete movable unit** — migrate/back up by copying it.
 

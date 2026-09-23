@@ -18,6 +18,7 @@ class Db private constructor(private val dir: Path) : Closeable {
 
     private var channel: FileChannel
     private val tables = mutableMapOf<String, MutableMap<String, ByteArray>>()
+    private val schema = mutableMapOf<String, String>()
     private var nextSeq = 1L
     private var liveCount = 0L
     private var deadCount = 0L
@@ -37,6 +38,25 @@ class Db private constructor(private val dir: Path) : Closeable {
     fun collection(name: String): Collection {
         check(NAME.matches(name)) { "invalid collection name: '$name'" }
         return Collection(this, name)
+    }
+
+    fun <T : Any> collection(name: String, type: Class<T>): TypedCollection<T> {
+        check(NAME.matches(name)) { "invalid collection name: '$name'" }
+        return TypedCollection(this, name, type)
+    }
+
+    fun declare(name: String, type: Class<*>) {
+        check(NAME.matches(name)) { "invalid collection name: '$name'" }
+        synchronized(lock) {
+            val existing = schema[name]
+            if (existing == type.name) return
+            check(existing == null) { "schema conflict: collection '$name' already declared as $existing, not ${type.name}" }
+            apply('S', name, type.name, null)
+        }
+    }
+
+    fun schema(name: String): Class<*>? = synchronized(lock) {
+        schema[name]?.let { Codec.classByName(it) }
     }
 
     val files: Path get() = filesDir
@@ -64,6 +84,10 @@ class Db private constructor(private val dir: Path) : Closeable {
                 StandardOpenOption.TRUNCATE_EXISTING,
             ).use { out ->
                 var seq = 1L
+                for ((table, className) in schema) {
+                    writeFully(out, encodeLine(seq, 'S', table, className, null))
+                    seq++
+                }
                 for ((table, rows) in tables) {
                     for ((id, blob) in rows) {
                         writeFully(out, encodeLine(seq, 'P', table, id, blob))
@@ -128,6 +152,7 @@ class Db private constructor(private val dir: Path) : Closeable {
                 if (tables[table]?.remove(id) != null) liveCount--
                 deadCount++
             }
+            'S' -> schema[table] = id
         }
         if (deadCount > 0L && deadCount >= liveCount) compact()
     }
@@ -181,6 +206,7 @@ class Db private constructor(private val dir: Path) : Closeable {
         val op = when (parts[1]) {
             "P" -> 'P'
             "D" -> 'D'
+            "S" -> 'S'
             else -> return false
         }
         val table = parts[2]
@@ -191,6 +217,7 @@ class Db private constructor(private val dir: Path) : Closeable {
                 tables.getOrPut(table) { mutableMapOf() }[id] = blob
             }
             'D' -> tables[table]?.remove(id)
+            'S' -> schema[table] = id
         }
         if (seq >= nextSeq) nextSeq = seq + 1
         return true
@@ -215,6 +242,36 @@ class Db private constructor(private val dir: Path) : Closeable {
             check(segment != "." && segment != "..") { "invalid attachment key: '$key'" }
             check(FILE_SEGMENT.matches(segment)) { "invalid attachment key: '$key'" }
         }
+    }
+
+    class TypedCollection<T : Any> internal constructor(
+        private val db: Db,
+        val name: String,
+        private val type: Class<T>,
+    ) {
+        private fun declare() {
+            db.declare(name, type)
+        }
+
+        fun put(id: String, value: T) {
+            declare()
+            db.put(name, id, Codec.encode(value))
+        }
+
+        fun delete(id: String) {
+            declare()
+            db.delete(name, id)
+        }
+
+        fun get(id: String): T? {
+            declare()
+            return db.get(name, id)?.let { Codec.decode(it, type) }
+        }
+
+        fun getObject(id: String): T? = get(id)
+        val size: Int get() = db.size(name)
+        fun ids(): Set<String> = db.ids(name)
+        fun entries(): List<Pair<String, T?>> = db.entries(name).map { (id, blob) -> id to Codec.decode(blob, type) }
     }
 
     class Collection internal constructor(

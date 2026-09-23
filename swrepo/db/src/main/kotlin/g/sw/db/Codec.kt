@@ -211,7 +211,7 @@ object Codec {
             }
             T_UUID -> return UUID(input.readLong(), input.readLong())
             T_ENUM -> {
-                val clazz = loadClass(readString(input)) ?: return null
+                val clazz = classByName(readString(input)) ?: return null
                 val name = readString(input)
                 return clazz.getMethod("valueOf", String::class.java).invoke(null, name)
             }
@@ -254,7 +254,7 @@ object Codec {
     }
 
     private fun readData(input: DataInputStream): Any? {
-        val clazz = loadClass(readString(input)) ?: return null
+        val clazz = classByName(readString(input)) ?: return null
         val meta = meta(clazz)
         val count = input.readInt()
         val values = HashMap<String, Any?>(count)
@@ -312,7 +312,7 @@ object Codec {
         Meta(fields, ctor, argKeys)
     }
 
-    private fun loadClass(name: String): Class<*>? {
+    fun classByName(name: String): Class<*>? {
         val loader = Thread.currentThread().contextClassLoader
             ?: Codec::class.java.classLoader
             ?: ClassLoader.getSystemClassLoader()
