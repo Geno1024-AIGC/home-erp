@@ -32,6 +32,7 @@ Planned for the first release; **each feature is one swrepo module**:
 ## Storage & HTTP Policy
 
 - **Star persistence**: hand-rolled lightweight storage in `swrepo/db` (`g.sw.db`): append-only WAL (one text line per record, `seq\top\tcollection\tid\tpayload`, id/payload Base64) + in-memory index rebuilt by replay, force-to-disk per append, inline compaction when dead records reach live records; no external database dependency.
+- **Attachment portability**: never store large binary blobs (photos, recordings, attachments) inside DB records — records hold only a relative attachment key. The referenced files must live under the data folder's `files/` subdirectory, written and resolved only through `Db` (`adoptAttachment` / `attachment`), never absolute paths, never files outside the data folder. One data folder is therefore the complete movable data unit: database log + every referenced file — migrate or back up by copying a single folder.
 - **HTTP API**: use only the JDK built-in `com.sun.net.httpserver.HttpServer`; no web framework.
 - **Browser satellite**: plain native HTML/CSS/JS front end speaking to the HTTP API; no front-end framework.
 
