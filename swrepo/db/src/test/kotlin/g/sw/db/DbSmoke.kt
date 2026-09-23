@@ -29,7 +29,7 @@ data class Event(
 object DbSmoke {
     @JvmStatic
     fun main(args: Array<String>) {
-        val dir = createTempDirectory("db-smoke")
+        var dir = createTempDirectory("db-smoke")
         dir.toFile().deleteOnExit()
 
         Db.open(dir).use { db ->
@@ -93,6 +93,29 @@ object DbSmoke {
         Db.open(dir).use { db ->
             check(db.collection("events").get("dinner", Event::class.java) == dinner)
         }
+
+        val photoSource = dir.resolveSibling("source.jpg")
+        Files.write(photoSource, byteArrayOf(1, 2, 3, 4, 5))
+
+        Db.open(dir).use { db ->
+            val stored = db.adoptAttachment(photoSource, "portraits/carol.jpg")
+            check(stored == dir.resolve("files/portraits/carol.jpg"))
+            check(Files.readAllBytes(stored).contentEquals(byteArrayOf(1, 2, 3, 4, 5)))
+            check(Files.readAllBytes(db.attachment("portraits/carol.jpg")).contentEquals(byteArrayOf(1, 2, 3, 4, 5)))
+            val bad = runCatching { db.attachment("portraits/..%2Fescape.jpg") }
+            check(bad.isFailure)
+        }
+
+        val moved = createTempDirectory("db-moved")
+        Files.delete(moved)
+        Files.move(dir, moved)
+
+        Db.open(moved).use { db ->
+            check(Files.readAllBytes(db.attachment("portraits/carol.jpg")).contentEquals(byteArrayOf(1, 2, 3, 4, 5)))
+            check(db.collection("events").get("dinner", Event::class.java) == dinner)
+            check(db.collection("people").get("carol", Person::class.java) == Person("Carol", 30, listOf("guest", "cook")))
+        }
+        dir = moved
 
         Db.open(dir).use { db ->
             val chores = db.collection("chores")

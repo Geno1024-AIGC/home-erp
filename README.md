@@ -63,9 +63,22 @@ Db.open(Path.of("data")).use { db ->
 }
 ```
 
+**Binary attachments stay out of the DB**: records hold only a relative attachment key; the bytes live under the data folder's `files/` and are moved in/out only through `Db`, so **one data folder is the complete movable unit** — migrate/back up by copying it.
+
+```kotlin
+Db.open(Path.of("data")).use { db ->
+    val photo = db.adoptAttachment(Path.of("/tmp/pan.jpg"), "inventory/pan-2026.jpg")
+    val item = db.collection("inventory")
+    item.put("pan", Item("frying pan", "inventory/pan-2026.jpg"))
+    val key = item.get("pan", Item::class.java).photo
+    Files.readAllBytes(db.attachment(key))  // resolves inside the data folder
+}
+```
+
 Notes:
 - Field metadata (reflection) is cached per class; `getObject`/`get` are shared by all threads through a per-collection lock.
 - The payload carries the class name and field names, so normalize a record by re-`put` after changing a data class's shape — old blobs won't match the new constructor.
+- Attachment keys are validated relative paths (`a-z0-9_-`, `/`-separated); `..`, absolute paths and anything escaping the folder are rejected. Deleting a record does not delete its attachment — orphans are reclaimed manually or by a future cleaner.
 
 ## Build & run
 

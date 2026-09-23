@@ -14,6 +14,8 @@ class Db private constructor(private val dir: Path) : Closeable {
 
     private val lock = Any()
 
+    private val filesDir = dir.resolve(FILES)
+
     private var channel: FileChannel
     private val tables = mutableMapOf<String, MutableMap<String, ByteArray>>()
     private var nextSeq = 1L
@@ -22,6 +24,7 @@ class Db private constructor(private val dir: Path) : Closeable {
 
     init {
         Files.createDirectories(dir)
+        Files.createDirectories(filesDir)
         channel = FileChannel.open(
             dir.resolve(LOG),
             StandardOpenOption.CREATE,
@@ -34,6 +37,21 @@ class Db private constructor(private val dir: Path) : Closeable {
     fun collection(name: String): Collection {
         check(NAME.matches(name)) { "invalid collection name: '$name'" }
         return Collection(this, name)
+    }
+
+    val files: Path get() = filesDir
+
+    fun adoptAttachment(source: Path, key: String): Path {
+        checkKey(key)
+        val target = resolve(key)
+        Files.createDirectories(target.parent)
+        Files.copy(source, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.COPY_ATTRIBUTES)
+        return target
+    }
+
+    fun attachment(key: String): Path {
+        checkKey(key)
+        return resolve(key)
     }
 
     fun compact() {
@@ -184,6 +202,21 @@ class Db private constructor(private val dir: Path) : Closeable {
         null
     }
 
+    private fun resolve(key: String): Path {
+        require(key.isNotEmpty()) { "empty attachment key" }
+        val path = filesDir.resolve(key).normalize()
+        check(path.startsWith(filesDir)) { "attachment key escapes the data folder: '$key'" }
+        return path
+    }
+
+    private fun checkKey(key: String) {
+        require(KEY_SEGMENT.matches(key)) { "invalid attachment key: '$key'" }
+        for (segment in key.split('/')) {
+            check(segment != "." && segment != "..") { "invalid attachment key: '$key'" }
+            check(FILE_SEGMENT.matches(segment)) { "invalid attachment key: '$key'" }
+        }
+    }
+
     class Collection internal constructor(
         private val db: Db,
         val name: String,
@@ -204,7 +237,10 @@ class Db private constructor(private val dir: Path) : Closeable {
 
     companion object {
         private const val LOG = "data.log"
+        private const val FILES = "files"
         private val NAME = Regex("[a-z0-9_-]+")
+        private val FILE_SEGMENT = Regex("[a-z0-9_.-]+")
+        private val KEY_SEGMENT = Regex("[a-z0-9_.-]+(/[a-z0-9_.-]+)*")
 
         fun open(dir: Path): Db = Db(dir)
     }
