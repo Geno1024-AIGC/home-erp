@@ -1,5 +1,10 @@
 pluginManagement {
     includeBuild("build-logic")
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
 }
 
 rootProject.name = "home-erp"
@@ -11,3 +16,4 @@ include("swrepo:finances")
 include("swrepo:chores")
 include("swrepo:db")
 include("star")
+include("android")
