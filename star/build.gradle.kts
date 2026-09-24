@@ -1,7 +1,11 @@
 plugins {
-    kotlin("jvm")
+    kotlin("jvm") version "2.3.0"
     id("g.build.versioning")
     application
+}
+
+kotlin {
+    jvmToolchain(25)
 }
 
 application {
