@@ -23,6 +23,7 @@ Feature modules live in `swrepo/` as Gradle sub-projects — a monorepo software
 | `swrepo:chores` | `g.sw.erp.chores` | housework & schedule |
 | `swrepo:db` | `g.sw.db` | lightweight append-only-log database |
 | `star` | `g.erp.star` | the Star application: assembles modules onto one JDK `HttpServer` |
+| `android` | `g.erp.satellite` | the Android satellite: side-drawer app browsing the Star's HTTP API (zero AndroidX, plain framework UI) |
 
 ## Storage
 
@@ -92,6 +93,7 @@ Requires **JDK 25** (sourced from `~/.jdks` via `gradle.properties`); Gradle wra
 ./gradlew build     # compile everything; bumps each module's pack counter
 ./gradlew run       # start the Star on http://localhost:8080
 ./gradlew :swrepo:db:smoke   # run the db self-test
+./gradlew :android:assembleDebug  # build the Android satellite APK
 ```
 
 Sample endpoints served by the Star:
@@ -106,4 +108,4 @@ Sample endpoints served by the Star:
 
 ## Versioning
 
-`0.1.<pack>.<build>-<sha1>` — per-module git-tracked counters (`count.pack`, `count.build`). Packaging tasks bump `pack`; running the app bumps `build`. Details and all conventions live in [`AGENTS.md`](AGENTS.md).
+`0.1.<pack>.<build>-<sha1>` — per-module git-tracked counters (`count.pack`, `count.build`). Packaging tasks bump `pack` (JVM `jar`/`assemble`/`build`/`dist*`; Android `assembleDebug`/`assembleRelease`/`bundle*`); running/installing bumps `build` (JVM `run`; Android `install*`). Details and all conventions live in [`AGENTS.md`](AGENTS.md).

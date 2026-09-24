@@ -78,8 +78,8 @@ Base namespaces, chosen by context:
 - Version format: `0.1.<pack>.<build>-<sha1>` (base `0.1` for every module; `sha1` = first 8 chars of HEAD commit).
 - Counters are **per-module**: each Gradle module keeps its own git-tracked plain-integer files `<module>/count.pack` and `<module>/count.build`.
 - Increments (implemented by a Gradle plugin in `build-logic`, wired via `dependsOn`):
-  - `pack` increments on packaging tasks (`jar`, `assemble`, `build`, `distTar`/`distZip`/`installDist`).
-  - `build` increments on `run`.
+  - `pack` increments on packaging tasks: JVM `jar`, `assemble`, `build`, `distTar`/`distZip`/`installDist`; Android `assembleDebug`/`assembleRelease`/`bundleDebug`/`bundleRelease`.
+  - `build` increments on run tasks: JVM `run`; Android `installDebug`/`installRelease` (installing the app on a device/emulator).
 - Semantics: a session reads counters at configuration time to form the version, then increments them as a side effect; the stamped version therefore counts **completed** events, so rebuilding at a given commit reproduces the same version.
 
 ## Code Style

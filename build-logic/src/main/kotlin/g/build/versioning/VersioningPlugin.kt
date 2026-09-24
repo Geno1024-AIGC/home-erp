@@ -60,7 +60,10 @@ class VersioningPlugin : Plugin<Project> {
     }
 
     companion object {
-        private val PACKAGING_TASKS = setOf("jar", "assemble", "build", "installDist", "distTar", "distZip")
-        private val RUNNING_TASKS = setOf("run")
+        private val PACKAGING_TASKS = setOf(
+            "jar", "assemble", "build", "installDist", "distTar", "distZip",
+            "assembleDebug", "assembleRelease", "bundleDebug", "bundleRelease",
+        )
+        private val RUNNING_TASKS = setOf("run", "installDebug", "installRelease")
     }
 }
