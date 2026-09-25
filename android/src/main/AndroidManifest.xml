@@ -4,7 +4,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
 
     <application
-        android:label="恒星卫星"
+        android:label="New Home"
         android:usesCleartextTraffic="true"
         android:theme="@style/Theme.Satellite">
 
