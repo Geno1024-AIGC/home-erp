@@ -411,11 +411,11 @@ class MainActivity : Activity() {
             runOnUiThread {
                 downloadBtn.isEnabled = true
                 result.onSuccess {
-                    try {
-                        installPackage(target)
-                    } catch (e: Exception) {
-                        statusView.text = "无法启动安装：${e.message}"
+                    if (!target.isFile || !target.canRead() || target.length() == 0L) {
+                        statusView.text = "下载的文件无效（空文件），请换一个更新源重试。"
+                        return@onSuccess
                     }
+                    installPackage(target)
                 }.onFailure { statusView.text = "下载失败：${it.message ?: "未知错误"}" }
             }
         }
@@ -425,8 +425,19 @@ class MainActivity : Activity() {
         val uri = ApkProvider.uriFor(this, apk)
         val intent = Intent(Intent.ACTION_VIEW).apply {
             setDataAndType(uri, ApkProvider.MIME_PACKAGE)
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            addFlags(
+                Intent.FLAG_ACTIVITY_NEW_TASK
+                    or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                    or Intent.FLAG_GRANT_READ_URI_PERMISSION
+            )
+            clipData = android.content.ClipData.newRawUri("apk", uri)
         }
+        val resolved = packageManager.resolveActivity(intent, android.content.pm.PackageManager.MATCH_DEFAULT_ONLY)
+        if (resolved == null) {
+            statusView.text = "设备上没有可处理 APK 的系统安装器。"
+            return
+        }
+        statusView.text = "已启动系统安装器（${resolved.activityInfo.packageName}）…"
         startActivity(intent)
     }
 
