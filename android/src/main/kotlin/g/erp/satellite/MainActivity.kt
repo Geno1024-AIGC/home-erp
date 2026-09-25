@@ -539,7 +539,7 @@ class MainActivity : Activity() {
             this,
             0,
             Intent(InstallReceiver.ACTION).setPackage(packageName),
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE,
         )
 
     private fun section(text: String): TextView = TextView(this).apply {

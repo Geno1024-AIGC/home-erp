@@ -29,6 +29,9 @@ jobs:
         run: |
           sed -i '/^org\.gradle\.java\.home=/d;/^org\.gradle\.java\.installations\.paths=/d' gradle.properties
 
+      - name: Resolve canary version
+        run: echo "CANARY_PACK=$(cat android/count.pack 2>/dev/null || echo 0)" >> "$GITHUB_ENV"
+
       - name: Build everything
         run: ./gradlew build :star:distZip :swrepo:db:smoke --stacktrace
 
@@ -36,7 +39,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          VERSION="0.1.$GITHUB_RUN_NUMBER.$(cat android/count.pack 2>/dev/null || echo 0).$(git rev-parse --short=8 HEAD)"
+          VERSION="0.1.$GITHUB_RUN_NUMBER.$CANARY_PACK.$(git rev-parse --short=8 HEAD)"
           echo "canary version = $VERSION"
           gh release list --json tagName,isPrerelease --limit 100 --jq '.[] | select(.isPrerelease) | .tagName' > /tmp/old-tags.txt || true
           while read -r t; do
