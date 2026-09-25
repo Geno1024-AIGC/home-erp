@@ -1,12 +1,12 @@
 .gradle/
 /build/
 /build-logic/build/
-/android/build/
+/satellite/android/build/
 /star/build/
 /swrepo/*/build/
 local.properties
-android/.cxx/
-android/local.properties
+satellite/android/.cxx/
+satellite/android/local.properties
 *.iml
 .idea/
 .kotlin/

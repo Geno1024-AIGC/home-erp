@@ -23,7 +23,7 @@
 | `swrepo:chores` | `g.sw.erp.chores` | [chores](swrepo/chores/README.md) — 家务 / 日程 |
 | `swrepo:db` | `g.sw.db` | [db](swrepo/db/README.md) — 精简的追加式日志数据库 |
 | `star` | `g.erp.star` | [star](star/README.md) — 恒星应用：把各模块组装到单个 JDK `HttpServer` 上 |
-| `android` | `g.erp.satellite` | [android](android/README.md) — Android 卫星：侧滑抽屉应用，浏览恒星的 HTTP API（零 AndroidX、纯框架 UI） |
+| `satellite:android` | `g.erp.satellite` | [satellite/android](satellite/android/README.md) — Android 卫星：侧滑抽屉应用，浏览恒星的 HTTP API（零 AndroidX、纯框架 UI） |
 
 软件仓库布局见 [swrepo/README.md](swrepo/README.md)。
 
@@ -35,16 +35,16 @@
 ./gradlew build     # 编译全部；同时把各模块的 pack 计数自增
 ./gradlew run       # 启动恒星，监听 http://localhost:8080
 ./gradlew :swrepo:db:smoke   # 运行数据库自测
-./gradlew :android:assembleDebug  # 构建 Android 卫星 APK
+./gradlew :satellite:android:assembleDebug  # 构建 Android 卫星 APK
 ```
 
 ## 卫星发布与更新
 
 CI（`.github/workflows/canary.yml`）在每次 push 到 `master` 时全量构建（也支持 `workflow_dispatch`），并发布一个 GitHub **pre-release**（Canary）,附带恒星 dist zip 与 debug/release APK。pre-release 只保留一个——每次运行都会先删掉旧的。
 
-- 两个 APK 都用仓库内置的共享 debug keystore `android/signing/debug.jks`（标准 `androiddebugkey`、密码 `android`）签名，因此每次 CI 运行签名一致，Canary 更新可直接覆盖安装，无需任何 GitHub secret。将来正式版可换成 secret 签名密钥而不改动流水线。
+- 两个 APK 都用仓库内置的共享 debug keystore `satellite/android/signing/debug.jks`（标准 `androiddebugkey`、密码 `android`）签名，因此每次 CI 运行签名一致，Canary 更新可直接覆盖安装，无需任何 GitHub secret。将来正式版可换成 secret 签名密钥而不改动流水线。
 - App 内 **设置 → 更新**：选 更新渠道（**Canary** = pre-release，**正式版** = 正式 release——目前还没有发布过）与 更新源（GitHub 或镜像前缀 ghproxy / gh-proxy / ghfast.top），再 检查更新 与 下载并安装。
-- 更新元数据统一读 `api.github.com`，APK 经所选镜像前缀下载；缓存的 APK 用框架自带的 `PackageInstaller` 会话 API 安装，结果经 manifest 中的 `BroadcastReceiver` 以系统通知呈现（零 AndroidX）。详见 [android/README.md](android/README.md)。
+- 更新元数据统一读 `api.github.com`，APK 经所选镜像前缀下载；缓存的 APK 用框架自带的 `PackageInstaller` 会话 API 安装，结果经 manifest 中的 `BroadcastReceiver` 以系统通知呈现（零 AndroidX）。详见 [satellite/android/README.md](satellite/android/README.md)。
 
 ## 版本号
 

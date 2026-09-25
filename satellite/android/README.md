@@ -34,5 +34,5 @@ Both `debug` and `release` build types sign with the repo-tracked `signing/debug
 ## Build
 
 ```bash
-./gradlew :android:assembleDebug
+./gradlew :satellite:android:assembleDebug
 ```

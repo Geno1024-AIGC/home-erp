@@ -25,11 +25,11 @@ class VersioningPlugin : Plugin<Project> {
     }
 
     /**
-     * Monotonic `$a` sequence, mirroring opencode-inspire:
-     * GitHub Actions run number on CI, otherwise the total commit count of HEAD.
-     * Both increase over time with no commit round-trip, so the version's
-     * leading sequence never stalls. `$b` is the module's own committed
-     * [packFile] packaging counter once per packaging task run.
+     * Monotonic `<env>` sequence: GitHub Actions run number on CI, otherwise
+     * the total commit count of HEAD. Both increase over time with no commit
+     * round-trip, so the version's leading sequence never stalls. `<pack>` is
+     * the module's own committed [packFile] packaging counter, bumped once per
+     * packaging task run.
      */
     private fun runSequence(project: Project): Int {
         val ciRun = System.getenv("GITHUB_RUN_NUMBER")?.trim()

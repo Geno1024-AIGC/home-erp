@@ -30,7 +30,7 @@ jobs:
           sed -i '/^org\.gradle\.java\.home=/d;/^org\.gradle\.java\.installations\.paths=/d' gradle.properties
 
       - name: Resolve canary version
-        run: echo "CANARY_PACK=$(cat android/count.pack 2>/dev/null || echo 0)" >> "$GITHUB_ENV"
+        run: echo "CANARY_PACK=$(cat satellite/android/count.pack 2>/dev/null || echo 0)" >> "$GITHUB_ENV"
 
       - name: Build everything
         run: ./gradlew build :star:distZip :swrepo:db:smoke --stacktrace
@@ -47,4 +47,4 @@ jobs:
           done < /tmp/old-tags.txt
           gh release create "v$VERSION" --prerelease --title "Canary v$VERSION" \
             --notes "Automated Canary build from commit \`$(git rev-parse --short=8 HEAD)\`." \
-            star/build/distributions/*.zip android/build/outputs/apk/debug/*.apk android/build/outputs/apk/release/*.apk
+            star/build/distributions/*.zip satellite/android/build/outputs/apk/debug/*.apk satellite/android/build/outputs/apk/release/*.apk
