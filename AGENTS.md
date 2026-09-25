@@ -92,3 +92,4 @@ Base namespaces, chosen by context:
 
 - Prefer clear, self-explanatory code; no unnecessary comments
 - Keep modules aligned with domain boundaries (will be defined as requirements are refined)
+- Each Gradle module documents itself in its own `README.md` at the module root; the repo README stays a thin overview + module index
