@@ -45,7 +45,7 @@ Planned for the first release; **each feature is one swrepo module**:
 
 ## Commit Message Convention
 
-Commits must be **atomic** — one logical change per commit. Dense, very frequent commits are encouraged and expected (small steps beat big batches).
+Commits must be **atomic** — one logical change per commit. Dense, very frequent commits are encouraged and expected (small steps beat big batches). Split a feature into many small commits (each file or sub-fix its own commit) instead of bundling; `./gradlew build`/pack-counter churn normally rides along the commit that caused the build.
 
 Strict format: `<bracket><action><bracket> <module>: <description>`
 
