@@ -112,13 +112,13 @@ class MainActivity : Activity() {
     }
 
     private fun buildDrawer(): LinearLayout {
-        val width = dp(280)
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(Color.WHITE)
             elevation = dp(8).toFloat()
             setPadding(0, dp(24), 0, dp(16))
-            translationX = -width.toFloat()
+            layoutParams = FrameLayout.LayoutParams(drawerWidth.toInt(), MATCH_PARENT)
+            translationX = -drawerWidth
             visibility = View.GONE
         }
 
@@ -207,7 +207,7 @@ class MainActivity : Activity() {
         }.start()
     }
 
-    private val drawerWidth: Float get() = dp(280).toFloat()
+    private val drawerWidth: Float get() = minOf(resources.displayMetrics.widthPixels / 2, dp(280)).toFloat()
 
     private val touchSlop: Int by lazy { ViewConfiguration.get(this).scaledTouchSlop }
 
