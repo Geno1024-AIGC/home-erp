@@ -1,6 +1,8 @@
 package g.erp.star
 
 import com.sun.net.httpserver.HttpServer
+import g.sw.db.Db
+import g.sw.erp.auth.AuthModule
 import g.sw.erp.chores.ChoresModule
 import g.sw.erp.finances.FinancesModule
 import g.sw.erp.inventory.InventoryModule
@@ -9,6 +11,7 @@ import g.sw.spi.ErpModule
 import g.sw.spi.Handler
 import g.sw.spi.MountContext
 import java.net.InetSocketAddress
+import java.nio.file.Path
 
 object Star {
     private const val DEFAULT_PORT = 8080
@@ -18,22 +21,28 @@ object Star {
         val port = args.firstOrNull()?.toIntOrNull() ?: DEFAULT_PORT
         val server = HttpServer.create(InetSocketAddress(port), 0)
         val router = Router()
+        val db = Db.open(Path.of("data"))
 
-        assemble(
-            router,
-            listOf(
-                MembersModule(),
-                InventoryModule(),
-                FinancesModule(),
-                ChoresModule(),
-            ),
-        )
+        try {
+            assemble(
+                router,
+                listOf(
+                    AuthModule(db),
+                    MembersModule(),
+                    InventoryModule(),
+                    FinancesModule(),
+                    ChoresModule(),
+                ),
+            )
 
-        server.createContext("/", router::handle)
-        server.start()
-        println("Star (恒星) listening on http://localhost:$port")
-        readln()
-        server.stop(0)
+            server.createContext("/", router::handle)
+            server.start()
+            println("Star (恒星) listening on http://localhost:$port")
+            while (true) Thread.sleep(3600_000L)
+        } finally {
+            server.stop(0)
+            db.close()
+        }
     }
 
     private fun assemble(router: Router, modules: List<ErpModule>) {

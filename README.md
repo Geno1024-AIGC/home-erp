@@ -17,6 +17,7 @@ Each module documents itself in its own README.
 | Module | Package | README |
 |---|---|---|
 | `swrepo:spi` | `g.sw.spi` | [spi](swrepo/spi/README.md) — module SPI: `ErpModule`, `MountContext`, HTTP helpers |
+| `swrepo:auth` | `g.sw.erp.auth` | [auth](swrepo/auth/README.md) — accounts & auth: password (PBKDF2) + SSH-key (ed25519) login |
 | `swrepo:members` | `g.sw.erp.members` | [members](swrepo/members/README.md) — family members / users |
 | `swrepo:inventory` | `g.sw.erp.inventory` | [inventory](swrepo/inventory/README.md) — household items & stock |
 | `swrepo:finances` | `g.sw.erp.finances` | [finances](swrepo/finances/README.md) — home bills & budget |

@@ -10,6 +10,7 @@ pluginManagement {
 rootProject.name = "home-erp"
 
 include("swrepo:spi")
+include("swrepo:auth")
 include("swrepo:members")
 include("swrepo:inventory")
 include("swrepo:finances")

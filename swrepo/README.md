@@ -9,6 +9,7 @@ Part of [Home ERP](../README.md).
 | Module | Package | Purpose | README |
 |---|---|---|---|
 | `swrepo:spi` | `g.sw.spi` | module SPI: `ErpModule`, `MountContext`, HTTP helpers (reusable) | [spi](spi/README.md) |
+| `swrepo:auth` | `g.sw.erp.auth` | accounts & authentication: password (PBKDF2) + SSH-key (ed25519) login | [auth](auth/README.md) |
 | `swrepo:members` | `g.sw.erp.members` | family members / users | [members](members/README.md) |
 | `swrepo:inventory` | `g.sw.erp.inventory` | household items & stock | [inventory](inventory/README.md) |
 | `swrepo:finances` | `g.sw.erp.finances` | home bills & budget | [finances](finances/README.md) |

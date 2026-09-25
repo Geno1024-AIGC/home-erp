@@ -17,6 +17,7 @@
 | 模块 | 包名 | README |
 |---|---|---|
 | `swrepo:spi` | `g.sw.spi` | [spi](swrepo/spi/README.md) — 模块 SPI：`ErpModule`、`MountContext`、HTTP 辅助 |
+| `swrepo:auth` | `g.sw.erp.auth` | [auth](swrepo/auth/README.md) — 账号与认证：密码（PBKDF2）+ SSH 密钥（ed25519）登录 |
 | `swrepo:members` | `g.sw.erp.members` | [members](swrepo/members/README.md) — 家庭成员 / 用户 |
 | `swrepo:inventory` | `g.sw.erp.inventory` | [inventory](swrepo/inventory/README.md) — 家居物品 / 库存 |
 | `swrepo:finances` | `g.sw.erp.finances` | [finances](swrepo/finances/README.md) — 家庭账单 / 预算 |

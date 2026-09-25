@@ -301,6 +301,7 @@ object Codec {
             .filter { it.parameterCount == fields.size }
             .firstOrNull { c -> c.parameters.isNotEmpty() && c.parameters.all { p -> p.isNamePresent() } }
             ?: clazz.declaredConstructors.maxByOrNull { it.parameterCount }
+        ctor?.isAccessible = true
         // Kotlin keeps no constructor parameter names in bytecode, so fall back to
         // positional alignment: field declaration order == constructor parameter order.
         val argKeys = when {
