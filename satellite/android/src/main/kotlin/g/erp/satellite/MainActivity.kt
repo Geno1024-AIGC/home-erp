@@ -3,6 +3,7 @@ package g.erp.satellite
 import android.app.Activity
 import android.annotation.SuppressLint
 import android.app.PendingIntent
+import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageInstaller
@@ -11,6 +12,8 @@ import android.graphics.Typeface
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Environment
+import android.provider.MediaStore
 import android.provider.Settings
 import android.view.Gravity
 import android.view.MotionEvent
@@ -616,10 +619,53 @@ class MainActivity : Activity() {
             startActivity(target)
             return
         }
+        if (Build.VERSION.SDK_INT >= 29) {
+            openInstallerViaDownloads(apk)
+        } else {
+            sessionInstall(apk)
+        }
+    }
+
+    @SuppressLint("NewApi")
+    private fun openInstallerViaDownloads(apk: File) {
+        val resolver = contentResolver
+        val version = runCatching { packageManager.getPackageInfo(packageName, 0).versionName }.getOrNull() ?: "update"
+        val values = ContentValues().apply {
+            put(MediaStore.Downloads.DISPLAY_NAME, "new-home-$version.apk")
+            put(MediaStore.Downloads.MIME_TYPE, "application/vnd.android.package-archive")
+            put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/")
+        }
+        val collection = MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+        val dst = resolver.insert(collection, values)
+        if (dst == null) {
+            sessionInstall(apk)
+            return
+        }
+        val copied = runCatching {
+            resolver.openOutputStream(dst)!!.use { out -> apk.inputStream().use { it.copyTo(out, 64 * 1024) } }
+        }
+        if (copied.isFailure) {
+            resolver.delete(dst, null, null)
+            statusView.text = "写入下载目录失败：${copied.exceptionOrNull()?.message ?: "未知错误"}"
+            return
+        }
+        val intent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(dst, "application/vnd.android.package-archive")
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        runCatching { startActivity(intent) }.onFailure {
+            resolver.delete(dst, null, null)
+            statusView.text = "无法打开系统安装器：${it.message ?: "未知错误"}"
+        }.onSuccess {
+            statusView.text = "已交给系统安装器，请在安装窗口中确认。"
+        }
+    }
+
+    private fun sessionInstall(apk: File) {
         runCatching {
             val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
-            val id = pm.packageInstaller.createSession(params)
-            pm.packageInstaller.openSession(id).use { session ->
+            val id = packageManager.packageInstaller.createSession(params)
+            packageManager.packageInstaller.openSession(id).use { session ->
                 session.openWrite(apk.name, 0, apk.length()).use { out ->
                     apk.inputStream().use { it.copyTo(out, 64 * 1024) }
                     session.fsync(out)

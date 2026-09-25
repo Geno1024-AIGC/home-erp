@@ -23,7 +23,7 @@ src/main/kotlin/g/erp/satellite/
 - On first launch (no star address configured) the home screen asks for the Star's HTTP address; it can also be managed in **设置 → 恒星** (multiple addresses: add / pick / delete). Then it fetches a few sample endpoints from the Star and renders them in a rough side-drawer UI (drawer opens by an edge swipe from the left, scrim follows the finger).
 - **设置** holds two sections: 恒星 (star addresses) and 更新 (update channel + source).
   - Release metadata is always read from `api.github.com`; the APK download goes through the selected source prefix.
-- APK install uses the framework **`PackageInstaller` session API**: the file is streamed into a session and committed; the result arrives at `InstallReceiver` (manifest-registered) and is surfaced via a system Notification. No `FileProvider`, no `ACTION_VIEW`.
+- APK installation follows opencode-inspire's flow: on **API 29+** the APK is copied into public Downloads (MediaStore) and opened with `ACTION_VIEW` so the system installer shows its confirm dialog; on older devices it falls back to the framework **`PackageInstaller` session API**, with the result reported by a manifest `BroadcastReceiver` notification. No `FileProvider`, no AndroidX.
   - API 33+: asks for `POST_NOTIFICATIONS` first. API 26+: routes to the "install unknown apps" setting when needed.
 - Downloads keep the single-thread executor; a stale Star response can't overwrite the settings screen (guarded render).
 
