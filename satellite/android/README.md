@@ -20,8 +20,8 @@ src/main/kotlin/g/erp/satellite/
 
 ## App behaviour
 
-- On launch, fetches a few sample endpoints from the Star and renders them in a rough side-drawer UI (drawer opens by an edge swipe from the left, scrim follows the finger).
-- 设置 → 更新: pick 更新渠道 (**Canary** = GitHub pre-releases, **正式版** = regular releases — none published yet) and 更新源 (GitHub or mirror prefixes ghproxy / gh-proxy / ghfast.top), then 检查更新 and 下载并安装.
+- On first launch (no star address configured) the home screen asks for the Star's HTTP address; it can also be managed in **设置 → 恒星** (multiple addresses: add / pick / delete). Then it fetches a few sample endpoints from the Star and renders them in a rough side-drawer UI (drawer opens by an edge swipe from the left, scrim follows the finger).
+- **设置** holds two sections: 恒星 (star addresses) and 更新 (update channel + source).
   - Release metadata is always read from `api.github.com`; the APK download goes through the selected source prefix.
 - APK install uses the framework **`PackageInstaller` session API**: the file is streamed into a session and committed; the result arrives at `InstallReceiver` (manifest-registered) and is surfaced via a system Notification. No `FileProvider`, no `ACTION_VIEW`.
   - API 33+: asks for `POST_NOTIFICATIONS` first. API 26+: routes to the "install unknown apps" setting when needed.

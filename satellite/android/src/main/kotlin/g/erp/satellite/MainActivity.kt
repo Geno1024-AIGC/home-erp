@@ -44,6 +44,7 @@ class MainActivity : Activity() {
     private lateinit var titleView: TextView
 
     private var baseUrl = StarClient.DEFAULT_BASE
+    private lateinit var savedUrls: MutableList<String>
     private var current: Feature = Features.MEMBERS
 
     private var selectedChannel: Updater.Channel = Updater.Channel.CANARY
@@ -59,8 +60,14 @@ class MainActivity : Activity() {
                 if (drawer.visibility == View.VISIBLE) closeDrawer()
             }
         }
-        baseUrl = getSharedPreferences("sat", Context.MODE_PRIVATE)
-            .getString("baseUrl", StarClient.DEFAULT_BASE)!!
+        savedUrls = loadUrls().also {
+            val legacy = getSharedPreferences("sat", Context.MODE_PRIVATE).getString("baseUrl", null)
+            if (it.isEmpty() && !legacy.isNullOrEmpty()) {
+                it.add(legacy)
+                saveUrls()
+            }
+        }
+        baseUrl = savedUrls.firstOrNull() ?: StarClient.DEFAULT_BASE
         buildUi()
         show(current)
     }
@@ -139,36 +146,6 @@ class MainActivity : Activity() {
         panel.addView(View(this).apply {
             layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, 0, 1f)
         })
-
-        panel.addView(TextView(this).apply {
-            text = "恒星地址"
-            textSize = 13f
-            setTextColor(Color.GRAY)
-            setPadding(dp(24), dp(8), dp(24), dp(2))
-        })
-
-        val url = EditText(this).apply {
-            setText(baseUrl)
-            setSingleLine(true)
-        }
-        val connect = Button(this).apply {
-            text = "连接"
-            setOnClickListener {
-                baseUrl = url.text.toString().trim().ifEmpty { StarClient.DEFAULT_BASE }
-                getSharedPreferences("sat", Context.MODE_PRIVATE)
-                    .edit().putString("baseUrl", baseUrl).apply()
-                closeDrawer()
-                show(current)
-            }
-        }
-        val row = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(16), dp(4), dp(16), dp(4))
-            addView(url, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-            addView(connect)
-        }
-        panel.addView(row)
 
         var version = packageManager?.getPackageInfo(packageName, 0)?.versionName ?: "?"
         panel.addView(TextView(this).apply {
@@ -304,6 +281,10 @@ class MainActivity : Activity() {
             showSettings()
             return
         }
+        if (savedUrls.isEmpty()) {
+            showSetup(feature)
+            return
+        }
         contentHost.removeViews(1, contentHost.childCount - 1)
         contentHost.addView(message("加载中…"))
 
@@ -382,6 +363,87 @@ class MainActivity : Activity() {
 
     private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
 
+    // ---------------------------------------------------------------- star setup
+
+    private fun showSetup(feature: Feature) {
+        contentHost.removeViews(1, contentHost.childCount - 1)
+        val col = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(24), dp(40), dp(24), dp(16))
+        }
+        col.addView(TextView(this).apply {
+            text = "首次使用，请先连接到恒星"
+            textSize = 17f
+            setTypeface(Typeface.DEFAULT_BOLD)
+        })
+        col.addView(TextView(this).apply {
+            text = "输入恒星 HTTP 地址（如 http://192.168.1.10:8080）。多个地址可在 设置 → 恒星 中管理。"
+            textSize = 13f
+            setTextColor(Color.GRAY)
+            setPadding(0, dp(6), 0, dp(16))
+        })
+        val input = EditText(this).apply {
+            hint = "http://192.168.1.10:8080"
+            setSingleLine(true)
+        }
+        col.addView(input)
+        col.addView(Button(this).apply {
+            text = "连接"
+            setOnClickListener {
+                val url = input.text.toString()
+                if (url.isBlank()) {
+                    input.error = "请输入恒星地址"
+                    return@setOnClickListener
+                }
+                addUrl(url)
+                show(current)
+            }
+        }, LinearLayout.LayoutParams(MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        contentHost.addView(col, LinearLayout.LayoutParams(MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+    }
+
+    private fun loadUrls(): MutableList<String> {
+        val text = getSharedPreferences("sat", Context.MODE_PRIVATE).getString("baseUrlList", "")
+        return text.orEmpty().split("\n").map { it.trim() }.filter { it.isNotEmpty() }.toMutableList()
+    }
+
+    private fun saveUrls() {
+        getSharedPreferences("sat", Context.MODE_PRIVATE).edit()
+            .putString("baseUrlList", savedUrls.joinToString("\n"))
+            .putString("baseUrl", baseUrl)
+            .apply()
+    }
+
+    private fun addUrl(url: String) {
+        val u = url.trim().trimEnd('/')
+        if (u.isEmpty()) return
+        if (!savedUrls.contains(u)) savedUrls.add(u)
+        baseUrl = u
+        saveUrls()
+        showSettings()
+    }
+
+    private fun removeUrl() {
+        if (savedUrls.isEmpty()) return
+        savedUrls.remove(baseUrl)
+        if (savedUrls.isEmpty()) {
+            baseUrl = StarClient.DEFAULT_BASE
+            savedUrls.add(baseUrl)
+        } else {
+            baseUrl = savedUrls.first()
+        }
+        saveUrls()
+        showSettings()
+    }
+
+    private fun selectUrl(url: String) {
+        if (url == baseUrl) return
+        if (!savedUrls.contains(url)) return
+        baseUrl = url
+        saveUrls()
+        showSettings()
+    }
+
     // ---------------------------------------------------------------- settings
 
     private fun showSettings() {
@@ -395,6 +457,43 @@ class MainActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(16), dp(16), dp(16), dp(16))
         }
+
+        col.addView(section("恒星"))
+
+        col.addView(TextView(this).apply {
+            text = "当前恒星：$baseUrl"
+            textSize = 14f
+            setTextColor(Color.GRAY)
+            setPadding(0, 0, 0, dp(4))
+        })
+
+        val urlSpinner = spinner(
+            labels = savedUrls,
+            selected = savedUrls.indexOfFirst { it == baseUrl }.coerceAtLeast(0),
+            onSelect = { index -> selectUrl(savedUrls[index]) },
+        )
+        col.addView(settingRow("选择恒星", urlSpinner))
+
+        val newUrl = EditText(this).apply {
+            hint = "http://192.168.1.10:8080"
+            setSingleLine(true)
+        }
+        val addBtn = Button(this).apply {
+            text = "添加"
+            setOnClickListener { addUrl(newUrl.text.toString()) }
+        }
+        val addRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, dp(4), 0, dp(4))
+            addView(newUrl, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            addView(addBtn)
+        }
+        col.addView(addRow)
+        col.addView(Button(this).apply {
+            text = "删除当前恒星"
+            setOnClickListener { removeUrl() }
+        })
 
         col.addView(section("更新"))
 
