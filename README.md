@@ -106,6 +106,14 @@ Sample endpoints served by the Star:
 | `GET /api/finances/ledger` | list ledger entries |
 | `GET /api/chores/tasks` | list chores |
 
+## Satellite release & update
+
+CI (`.github/workflows/canary.yml`) builds the whole repo on every push to `master` (`workflow_dispatch` also available) and publishes one GitHub **pre-release** (Canary) carrying the Star dist zip plus the debug/release APKs. Exactly one pre-release is kept — the previous one is deleted on each run.
+
+- Both APKs are signed with the shared debug keystore `android/signing/debug.jks` (standard `androiddebugkey`, password `android`), so every CI run produces the **same signature** and a Canary update installs over the previous one, no GitHub secrets required. A future stable channel may swap in a secret signing key without touching the pipeline.
+- In-app **设置 → 更新**: pick 更新渠道 (**Canary** = pre-releases, **正式版** = regular releases — none published yet) and 更新源 (GitHub or mirror prefixes ghproxy / gh-proxy / ghfast.top), then 检查更新 and 下载并安装.
+- Updates are fetched from `api.github.com` and downloaded through the selected mirror prefix; the cached APK is served to the package installer through `ApkProvider`, a hand-rolled framework `ContentProvider` (no FileProvider, zero AndroidX).
+
 ## Versioning
 
 `0.1.<pack>.<build>-<sha1>` — per-module git-tracked counters (`count.pack`, `count.build`). Packaging tasks bump `pack` (JVM `jar`/`assemble`/`build`/`dist*`; Android `assembleDebug`/`assembleRelease`/`bundle*`); running/installing bumps `build` (JVM `run`; Android `install*`). Details and all conventions live in [`AGENTS.md`](AGENTS.md).
