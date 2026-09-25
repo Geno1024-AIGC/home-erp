@@ -224,15 +224,13 @@ class MainActivity : Activity() {
         private var downX = 0f
         private var downY = 0f
         private var startTranslation = 0f
-        private var downNearEdge = false
         private var potential = false
         private var dragging = false
 
         override fun onTouch(view: View, event: MotionEvent): Boolean {
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
-                    downNearEdge = drawer.visibility != View.VISIBLE && event.x < dp(24).toFloat()
-                    potential = drawer.visibility == View.VISIBLE || downNearEdge
+                    potential = drawer.visibility == View.VISIBLE || event.x < dp(24).toFloat()
                     downX = event.x
                     downY = event.y
                     startTranslation = drawer.translationX
@@ -268,8 +266,6 @@ class MainActivity : Activity() {
                     if (wasDragging) {
                         val openNow = revealProgress(drawer.translationX) >= 0.5f
                         settleDrawer(if (openNow) 0f else -drawerWidth, openNow)
-                    } else if (downNearEdge && event.x - downX < touchSlop) {
-                        openDrawer()
                     }
                 }
 
@@ -308,13 +304,15 @@ class MainActivity : Activity() {
         contentHost.removeViews(1, contentHost.childCount - 1)
         contentHost.addView(message("加载中…"))
 
+        val request = feature
         executor.execute {
-            val result = runCatching { StarClient.get(baseUrl, feature.path) }
+            val result = runCatching { StarClient.get(baseUrl, request.path) }
             runOnUiThread {
+                if (current !== request) return@runOnUiThread
                 contentHost.removeViews(1, contentHost.childCount - 1)
                 result.fold(
-                    onSuccess = { body -> render(feature, body) },
-                    onFailure = { e -> renderError(feature, e) },
+                    onSuccess = { body -> render(request, body) },
+                    onFailure = { e -> renderError(request, e) },
                 )
             }
         }
