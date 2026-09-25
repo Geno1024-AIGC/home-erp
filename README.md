@@ -112,7 +112,7 @@ CI (`.github/workflows/canary.yml`) builds the whole repo on every push to `mast
 
 - Both APKs are signed with the shared debug keystore `android/signing/debug.jks` (standard `androiddebugkey`, password `android`), so every CI run produces the **same signature** and a Canary update installs over the previous one, no GitHub secrets required. A future stable channel may swap in a secret signing key without touching the pipeline.
 - In-app **设置 → 更新**: pick 更新渠道 (**Canary** = pre-releases, **正式版** = regular releases — none published yet) and 更新源 (GitHub or mirror prefixes ghproxy / gh-proxy / ghfast.top), then 检查更新 and 下载并安装.
-- Updates are fetched from `api.github.com` and downloaded through the selected mirror prefix; the cached APK is served to the package installer through `ApkProvider`, a hand-rolled framework `ContentProvider` (no FileProvider, zero AndroidX).
+- Updates are fetched from `api.github.com` and downloaded through the selected mirror prefix; the cached APK is installed via the framework `PackageInstaller` session API, with the result surfaced through a manifest `BroadcastReceiver` notification (zero AndroidX).
 
 ## Versioning
 

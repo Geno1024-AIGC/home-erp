@@ -2,13 +2,16 @@ package g.erp.satellite
 
 import android.app.Activity
 import android.annotation.SuppressLint
+import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageInstaller
 import android.graphics.Color
 import android.graphics.Typeface
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
@@ -25,7 +28,7 @@ import android.widget.ScrollView
 import android.widget.TextView
 import android.window.OnBackInvokedDispatcher
 import g.erp.satellite.json.Json
-import g.erp.satellite.update.ApkProvider
+import g.erp.satellite.update.InstallReceiver
 import g.erp.satellite.update.Updater
 import java.io.File
 import java.util.Locale
@@ -496,24 +499,48 @@ class MainActivity : Activity() {
     }
 
     private fun installPackage(apk: File) {
-        val uri = ApkProvider.uriFor(this, apk)
-        val intent = Intent(Intent.ACTION_VIEW).apply {
-            setDataAndType(uri, ApkProvider.MIME_PACKAGE)
-            addFlags(
-                Intent.FLAG_ACTIVITY_NEW_TASK
-                    or Intent.FLAG_ACTIVITY_CLEAR_TOP
-                    or Intent.FLAG_GRANT_READ_URI_PERMISSION
-            )
-            clipData = android.content.ClipData.newRawUri("apk", uri)
-        }
-        val resolved = packageManager.resolveActivity(intent, android.content.pm.PackageManager.MATCH_DEFAULT_ONLY)
-        if (resolved == null) {
-            statusView.text = "设备上没有可处理 APK 的系统安装器。"
+        val pm = packageManager
+        if (Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            statusView.text = "请允许通知，安装结果会以通知提醒。"
+            requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 7)
             return
         }
-        statusView.text = "已启动系统安装器（${resolved.activityInfo.packageName}）…"
-        startActivity(intent)
+        if (Build.VERSION.SDK_INT >= 26 && !pm.canRequestPackageInstalls()) {
+            statusView.text = "需要允许本应用安装未知应用。"
+            val target = if (Build.VERSION.SDK_INT >= 26) {
+                Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName"))
+            } else {
+                Intent(Settings.ACTION_SECURITY_SETTINGS)
+            }
+            startActivity(target)
+            return
+        }
+        runCatching {
+            val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
+            val id = pm.packageInstaller.createSession(params)
+            pm.packageInstaller.openSession(id).use { session ->
+                session.openWrite(apk.name, 0, apk.length()).use { out ->
+                    apk.inputStream().use { it.copyTo(out, 64 * 1024) }
+                    session.fsync(out)
+                }
+                session.commit(installResultPendingIntent().intentSender)
+            }
+        }.onFailure {
+            statusView.text = "发起安装失败：${it.message ?: "未知错误"}"
+        }.onSuccess {
+            statusView.text = "已提交安装，结果请看系统通知。"
+        }
     }
+
+    private fun installResultPendingIntent(): PendingIntent =
+        PendingIntent.getBroadcast(
+            this,
+            0,
+            Intent(InstallReceiver.ACTION).setPackage(packageName),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
 
     private fun section(text: String): TextView = TextView(this).apply {
         this.text = text
