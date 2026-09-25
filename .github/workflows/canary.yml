@@ -25,17 +25,6 @@ jobs:
           distribution: temurin
           java-version: '25'
 
-      - name: Install Android SDK
-        run: |
-          export ANDROID_HOME="$HOME/android-sdk"
-          mkdir -p "$ANDROID_HOME"
-          curl -fsSL -o /tmp/ct.zip https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
-          unzip -q /tmp/ct.zip -d "$ANDROID_HOME/cmdline-tools"
-          mv "$ANDROID_HOME/cmdline-tools/cmdline-tools" "$ANDROID_HOME/cmdline-tools/latest"
-          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_HOME" --licenses >/dev/null
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_HOME" "platforms;android-36" "build-tools;36.0.0" "platform-tools" >/dev/null
-          echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
-
       - name: Neutralise machine-specific Gradle properties
         run: |
           sed -i '/^org\.gradle\.java\.home=/d;/^org\.gradle\.java\.installations\.paths=/d' gradle.properties
