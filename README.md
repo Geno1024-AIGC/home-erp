@@ -48,4 +48,4 @@ CI (`.github/workflows/canary.yml`) builds the whole repo on every push to `mast
 
 ## Versioning
 
-`0.1.<a>.<b>.<sha1>` — borrowing opencode-inspire's scheme, `<a>` is an environment monotonic sequence (GitHub Actions run number on CI, otherwise the repo's commit count), `<b>` is the module's git-tracked packaging counter `count.pack` (bumped by `jar`/`assemble`/`build`/`dist*`; Android `assembleDebug`/`assembleRelease`/`bundle*`). Details and all conventions live in [`AGENTS.md`](AGENTS.md).
+`0.1.<env>.<pack>.<sha1>` — `<env>` is an environment monotonic sequence (GitHub Actions run number on CI, otherwise the repo's commit count), `<pack>` is the module's git-tracked packaging counter `count.pack` (bumped by `jar`/`assemble`/`build`/`dist*`; Android `assembleDebug`/`assembleRelease`/`bundle*`). Details and all conventions live in [`AGENTS.md`](AGENTS.md).

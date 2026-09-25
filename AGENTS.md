@@ -38,7 +38,7 @@ Planned for the first release; **each feature is one swrepo module**:
 
 ## CI/CD & Satellite Updates
 
-- Build & release pipeline: `.github/workflows/canary.yml` (push to `master` + `workflow_dispatch`), builds the whole repo, publishes a GitHub **pre-release** named after the app version (`0.1.<a>.<b>.<sha1>`), and **keeps exactly one pre-release** — old ones are deleted (`gh release delete --yes --cleanup-tag`) before the new one is created.
+- Build & release pipeline: `.github/workflows/canary.yml` (push to `master` + `workflow_dispatch`), builds the whole repo, publishes a GitHub **pre-release** named after the app version (`0.1.<env>.<pack>.<sha1>`), and **keeps exactly one pre-release** — old ones are deleted (`gh release delete --yes --cleanup-tag`) before the new one is created.
 - Channel mapping: in-app update channel **Canary** = GitHub pre-releases; **正式版** (stable) = regular GitHub releases (none published yet). The api metadata is always read from `api.github.com`; the APK file is downloaded through the user-selected **update source** (GitHub or mirror prefix). See `android/.../update/Updater.kt`.
 - APK signing: both debug and release variants sign with the repo-tracked standard debug keystore `android/signing/debug.jks` (`androiddebugkey` / `android`), giving a stable signature across CI runs so a Canary update can install over the previous one. Treat it as the throwaway canary key; a future stable release key should come from a secret (e.g. `KEYSTORE_BASE64`) instead of the repo.
 - New Android code must stay **zero-AndroidX / zero third-party**; APK installs use the framework `PackageInstaller` session API with a manifest `BroadcastReceiver` (`g.erp.satellite.update.InstallReceiver`) reporting the result via a Notification.
@@ -82,11 +82,11 @@ Base namespaces, chosen by context:
 
 ## Versioning
 
-- Version format: `0.1.<a>.<b>.<sha1>` (base `0.1` for every module; `sha1` = first 8 chars of HEAD commit). Borrowed from `opencode-inspire`.
-- `<a>` — monotonic environment sequence: the GitHub Actions run number (`GITHUB_RUN_NUMBER`) when building on CI, otherwise the total commit count of HEAD (`git rev-list --count HEAD`). Purely environmental — no file round-trip, and it never stalls on a dead zero.
-- `<b>` — **per-module** git-tracked packaging counter `<module>/count.pack`, incremented on packaging tasks: JVM `jar`, `assemble`, `build`, `distTar`/`distZip`/`installDist`; Android `assembleDebug`/`assembleRelease`/`bundleDebug`/`bundleRelease`.
-- Semantics: a session reads `<module>/count.pack` at configuration time, then increments it as a side effect; the stamped `<b>` therefore counts **completed** packaging events, so rebuilding at a given commit reproduces the same `<b>` (while `<a>` varies by environment).
-- Android `versionCode` = `<a>`: strictly monotonic within each release stream (CI run number), so an update can always install over the previous build.
+- Version format: `0.1.<env>.<pack>.<sha1>` (base `0.1` for every module; `sha1` = first 8 chars of HEAD commit).
+- `<env>` — monotonic environment sequence: the GitHub Actions run number (`GITHUB_RUN_NUMBER`) when building on CI, otherwise the total commit count of HEAD (`git rev-list --count HEAD`). Purely environmental — no file round-trip, and it never stalls on a dead zero.
+- `<pack>` — **per-module** git-tracked packaging counter `<module>/count.pack`, incremented on packaging tasks: JVM `jar`, `assemble`, `build`, `distTar`/`distZip`/`installDist`; Android `assembleDebug`/`assembleRelease`/`bundleDebug`/`bundleRelease`.
+- Semantics: a session reads `<module>/count.pack` at configuration time, then increments it as a side effect; the stamped `<pack>` therefore counts **completed** packaging events, so rebuilding at a given commit reproduces the same `<pack>` (while `<env>` varies by environment).
+- Android `versionCode` = `<env>`: strictly monotonic within each release stream (CI run number), so an update can always install over the previous build.
 
 ## Code Style
 

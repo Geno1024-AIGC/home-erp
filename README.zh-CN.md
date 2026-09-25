@@ -48,4 +48,4 @@ CI（`.github/workflows/canary.yml`）在每次 push 到 `master` 时全量构�
 
 ## 版本号
 
-`0.1.<a>.<b>.<sha1>` —— 借鉴 opencode-inspire 的方案：`<a>` 是环境决定的单调递增序列（CI 上用 GitHub Actions 运行号，否则用仓库提交数），`<b>` 是该模块 git 跟踪的打包计数 `count.pack`（`jar`/`assemble`/`build`/`dist*` 会自增；Android 为 `assembleDebug`/`assembleRelease`/`bundle*`）。细节与全部约定见 [`AGENTS.md`](AGENTS.md)。
+`0.1.<env>.<pack>.<sha1>` —— `<env>` 是环境决定的单调递增序列（CI 上用 GitHub Actions 运行号，否则用仓库提交数），`<pack>` 是该模块 git 跟踪的打包计数 `count.pack`（`jar`/`assemble`/`build`/`dist*` 会自增；Android 为 `assembleDebug`/`assembleRelease`/`bundle*`）。细节与全部约定见 [`AGENTS.md`](AGENTS.md)。
