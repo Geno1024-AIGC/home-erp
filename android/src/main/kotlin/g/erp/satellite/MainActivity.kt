@@ -3,21 +3,30 @@ package g.erp.satellite
 import android.app.Activity
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
+import android.widget.AdapterView
+import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.LinearLayout
+import android.widget.Spinner
+import android.widget.ScrollView
 import android.widget.TextView
 import android.window.OnBackInvokedDispatcher
 import g.erp.satellite.json.Json
+import g.erp.satellite.update.ApkProvider
+import g.erp.satellite.update.Updater
+import java.io.File
 import java.util.Locale
 import java.util.concurrent.Executors
 
@@ -32,6 +41,12 @@ class MainActivity : Activity() {
 
     private var baseUrl = StarClient.DEFAULT_BASE
     private var current: Feature = Features.MEMBERS
+
+    private var selectedChannel: Updater.Channel = Updater.Channel.CANARY
+    private var selectedSource: Updater.Source = Updater.SOURCES.first()
+    private var foundRelease: Updater.Release? = null
+    private lateinit var statusView: TextView
+    private lateinit var downloadBtn: Button
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -210,6 +225,10 @@ class MainActivity : Activity() {
 
     private fun show(feature: Feature) {
         titleView.text = feature.title
+        if (feature === Features.SETTINGS) {
+            showSettings()
+            return
+        }
         contentHost.removeViews(1, contentHost.childCount - 1)
         contentHost.addView(message("加载中…"))
 
@@ -286,6 +305,164 @@ class MainActivity : Activity() {
 
     private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
 
+    // ---------------------------------------------------------------- settings
+
+    private fun showSettings() {
+        val prefs = getSharedPreferences("sat", Context.MODE_PRIVATE)
+        selectedChannel = Updater.Channel.from(prefs.getString("channel", null) ?: "CANARY")
+        selectedSource = Updater.sourceFrom(prefs.getString("source", null) ?: "github")
+        foundRelease = null
+
+        contentHost.removeViews(1, contentHost.childCount - 1)
+        val col = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(16), dp(16), dp(16))
+        }
+
+        col.addView(section("更新"))
+
+        val channelSpinner = spinner(
+            labels = Updater.Channel.entries.map { it.label },
+            selected = Updater.Channel.entries.indexOf(selectedChannel),
+            onSelect = { index ->
+                selectedChannel = Updater.Channel.entries[index]
+                prefs.edit().putString("channel", selectedChannel.name).apply()
+            },
+        )
+        col.addView(settingRow("更新渠道", channelSpinner))
+
+        val sourceSpinner = spinner(
+            labels = Updater.SOURCES.map { it.label },
+            selected = Updater.SOURCES.indexOf(selectedSource),
+            onSelect = { index ->
+                selectedSource = Updater.SOURCES[index]
+                prefs.edit().putString("source", selectedSource.id).apply()
+            },
+        )
+        col.addView(settingRow("更新源", sourceSpinner))
+
+        statusView = TextView(this).apply {
+            textSize = 14f
+            setPadding(0, dp(8), 0, dp(4))
+        }
+        col.addView(statusView)
+
+        col.addView(Button(this).apply {
+            text = "检查更新"
+            setOnClickListener { checkUpdate() }
+        })
+
+        downloadBtn = Button(this).apply {
+            text = "下载并安装"
+            visibility = View.GONE
+            setOnClickListener { downloadAndInstall() }
+        }
+        col.addView(downloadBtn)
+
+        val scroll = ScrollView(this).apply { addView(col) }
+        contentHost.addView(scroll, LinearLayout.LayoutParams(MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+    }
+
+    private fun checkUpdate() {
+        statusView.text = "检查中…"
+        downloadBtn.visibility = View.GONE
+        val wantChannel = selectedChannel
+        val installed = packageManager.getPackageInfo(packageName, 0).versionName ?: ""
+        executor.execute {
+            var update = false
+            val text = runCatching {
+                val found = Updater.findFor(Updater.fetchReleases(), wantChannel)
+                val current = Updater.parseVersion(installed)
+                if (found == null) {
+                    "更新渠道「${wantChannel.label}」暂无发布。"
+                } else if (found.version == null) {
+                    "发布版本号无法识别：${found.tag}。"
+                } else if (current != null && found.version <= current) {
+                    "已是最新版本 $current。"
+                } else {
+                    foundRelease = found
+                    update = true
+                    "发现新版本 ${found.version}（发布于 ${found.publishedAt}）。"
+                }
+            }.getOrElse { "检查失败：${it.message ?: "未知错误"}" }
+            runOnUiThread {
+                statusView.text = text
+                if (update) downloadBtn.visibility = View.VISIBLE
+            }
+        }
+    }
+
+    private fun downloadAndInstall() {
+        val release = foundRelease ?: run {
+            statusView.text = "请先检查更新。"
+            return
+        }
+        val url = Updater.downloadUrl(selectedSource, release)
+        val target = File(cacheDir, "updates/${release.apkName ?: "update.apk"}")
+        downloadBtn.isEnabled = false
+        executor.execute {
+            val result = runCatching {
+                Updater.download(url, target) { done, total ->
+                    val pct = if (total > 0) " ${done * 100 / total}%" else ""
+                    val totalText = if (total > 0) "${total / 1024}KB" else "?"
+                    runOnUiThread { statusView.text = "下载中…$pct（${done / 1024}KB/$totalText）" }
+                }
+            }
+            runOnUiThread {
+                downloadBtn.isEnabled = true
+                result.onSuccess {
+                    try {
+                        installPackage(target)
+                    } catch (e: Exception) {
+                        statusView.text = "无法启动安装：${e.message}"
+                    }
+                }.onFailure { statusView.text = "下载失败：${it.message ?: "未知错误"}" }
+            }
+        }
+    }
+
+    private fun installPackage(apk: File) {
+        val uri = ApkProvider.uriFor(this, apk)
+        val intent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(uri, ApkProvider.MIME_PACKAGE)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        startActivity(intent)
+    }
+
+    private fun section(text: String): TextView = TextView(this).apply {
+        this.text = text
+        textSize = 16f
+        setTypeface(Typeface.DEFAULT_BOLD)
+        setPadding(0, dp(8), 0, dp(4))
+    }
+
+    private fun settingRow(label: String, spinner: Spinner): LinearLayout = LinearLayout(this).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+        setPadding(0, dp(4), 0, dp(4))
+        addView(TextView(this@MainActivity).apply {
+            text = label
+            textSize = 15f
+        }, LinearLayout.LayoutParams(dp(88), ViewGroup.LayoutParams.WRAP_CONTENT))
+        addView(spinner, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+    }
+
+    private fun spinner(labels: List<String>, selected: Int, onSelect: (Int) -> Unit): Spinner =
+        Spinner(this).apply {
+            val adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_item, labels)
+            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+            setAdapter(adapter)
+            setSelection(selected)
+            onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+                override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                    onSelect(position)
+                }
+
+                override fun onNothingSelected(parent: AdapterView<*>?) {}
+            }
+        }
+
     companion object {
         private val MATCH_PARENT = ViewGroup.LayoutParams.MATCH_PARENT
     }
@@ -352,5 +529,9 @@ internal object Features {
         }
     }
 
-    val ALL = listOf(MEMBERS, INVENTORY, FINANCES, CHORES)
+    val SETTINGS = object : Feature("设置", "", "") {
+        override fun row(item: Map<String, Any?>): String = ""
+    }
+
+    val ALL = listOf(MEMBERS, INVENTORY, FINANCES, CHORES, SETTINGS)
 }

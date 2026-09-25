@@ -16,6 +16,12 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <provider
+            android:name=".update.ApkProvider"
+            android:authorities="g.erp.satellite.apk"
+            android:exported="false"
+            android:grantUriPermissions="true" />
     </application>
 
 </manifest>
