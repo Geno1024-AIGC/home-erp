@@ -56,6 +56,9 @@ class MainActivity : Activity() {
     private lateinit var statusView: TextView
     private lateinit var downloadBtn: Button
 
+    private var authToken: String? = null
+    private var authUser: String? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         if (Build.VERSION.SDK_INT >= 33) {
@@ -71,9 +74,13 @@ class MainActivity : Activity() {
             }
         }
         baseUrl = savedUrls.firstOrNull() ?: StarClient.DEFAULT_BASE
+        authToken = prefs().getString("authToken", null)
+        authUser = prefs().getString("authUser", null)
         buildUi()
         show(current)
     }
+
+    private fun prefs() = getSharedPreferences("sat", Context.MODE_PRIVATE)
 
     // ---------------------------------------------------------------- UI
 
@@ -293,13 +300,22 @@ class MainActivity : Activity() {
 
         val request = feature
         executor.execute {
-            val result = runCatching { StarClient.get(baseUrl, request.path) }
+            val result = runCatching { StarClient.get(baseUrl, request.path, authToken) }
             runOnUiThread {
                 if (current !== request) return@runOnUiThread
                 contentHost.removeViews(1, contentHost.childCount - 1)
                 result.fold(
                     onSuccess = { body -> render(request, body) },
-                    onFailure = { e -> renderError(request, e) },
+                    onFailure = { e ->
+                        if (e is ApiException && e.code == 401) {
+                            authToken = null
+                            authUser = null
+                            prefs().edit().remove("authToken").remove("authUser").apply()
+                            renderNeedLogin(request)
+                        } else {
+                            renderError(request, e)
+                        }
+                    },
                 )
             }
         }
@@ -344,6 +360,25 @@ class MainActivity : Activity() {
         box.addView(Button(this).apply {
             text = "重试"
             setOnClickListener { show(feature) }
+        })
+        contentHost.addView(box, LinearLayout.LayoutParams(MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+    }
+
+    private fun renderNeedLogin(feature: Feature) {
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setPadding(dp(32), dp(48), dp(32), dp(48))
+        }
+        box.addView(TextView(this).apply {
+            text = "该功能需要登录后使用"
+            textSize = 14f
+            setTextColor(Color.GRAY)
+            gravity = Gravity.CENTER_HORIZONTAL
+        })
+        box.addView(Button(this).apply {
+            text = "去登录"
+            setOnClickListener { show(Features.SETTINGS) }
         })
         contentHost.addView(box, LinearLayout.LayoutParams(MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
     }
@@ -460,6 +495,8 @@ class MainActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(16), dp(16), dp(16), dp(16))
         }
+
+        buildAccountSection(col)
 
         col.addView(section("恒星"))
 
@@ -686,6 +723,96 @@ class MainActivity : Activity() {
             Intent(InstallReceiver.ACTION).setPackage(packageName),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE,
         )
+
+    // ---------------------------------------------------------------- account
+
+    private fun buildAccountSection(col: LinearLayout) {
+        col.addView(section("账号"))
+        if (authToken == null) {
+            val name = EditText(this).apply {
+                hint = "用户名"
+                setSingleLine(true)
+                setInputType(android.text.InputType.TYPE_CLASS_TEXT)
+            }
+            val pass = EditText(this).apply {
+                hint = "密码"
+                setSingleLine(true)
+                setInputType(android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD)
+            }
+            val status = TextView(this).apply {
+                textSize = 13f
+                setTextColor(Color.GRAY)
+                setPadding(0, dp(4), 0, dp(4))
+            }
+            col.addView(name)
+            col.addView(pass)
+            col.addView(status)
+            col.addView(Button(this).apply {
+                text = "登录"
+                setOnClickListener {
+                    val user = name.text.toString().trim()
+                    val password = pass.text.toString()
+                    if (user.isEmpty() || password.isEmpty()) {
+                        status.text = "请输入用户名和密码"
+                        return@setOnClickListener
+                    }
+                    status.text = "登录中…"
+                    executor.execute {
+                        val result = runCatching {
+                            val body = "{\"method\":\"password\",\"username\":\"" + Json.escape(user) +
+                                "\",\"password\":\"" + Json.escape(password) + "\"}"
+                            StarClient.post(baseUrl, "/api/auth/login", body)
+                        }
+                        runOnUiThread {
+                            result.fold(
+                                onSuccess = { resp ->
+                                    val root = Json.parse(resp) as? Map<*, *>
+                                    val token = root?.get("token") as? String
+                                    val display = (root?.get("user") as? Map<*, *>)?.get("displayName") as? String ?: user
+                                    if (token == null) {
+                                        status.text = "登录响应异常，请重试"
+                                        return@fold
+                                    }
+                                    authToken = token
+                                    authUser = display
+                                    prefs().edit().putString("authToken", token).putString("authUser", display).apply()
+                                    showSettings()
+                                },
+                                onFailure = { e ->
+                                    status.text = if (e is ApiException) "登录失败：${e.message}" else "无法连接恒星：${e.message ?: "未知错误"}"
+                                },
+                            )
+                        }
+                    }
+                }
+            })
+        } else {
+            col.addView(TextView(this).apply {
+                text = "已登录：${authUser.orEmpty()}"
+                textSize = 14f
+                setPadding(0, 0, 0, dp(4))
+            })
+            col.addView(Button(this).apply {
+                text = "登出"
+                setOnClickListener {
+                    val token = authToken
+                    executor.execute {
+                        runCatching { StarClient.post(baseUrl, "/api/auth/logout", "{}", token ?: "") }
+                        runOnUiThread {
+                            authToken = null
+                            authUser = null
+                            prefs().edit().remove("authToken").remove("authUser").apply()
+                            showSettings()
+                        }
+                    }
+                }
+            })
+        }
+        col.addView(View(this).apply {
+            setBackgroundColor(Color.rgb(230, 232, 236))
+            layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, 1)
+        })
+    }
 
     private fun section(text: String): TextView = TextView(this).apply {
         this.text = text

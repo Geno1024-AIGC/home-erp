@@ -128,4 +128,19 @@ object Json {
 
         private fun take(c: Char): Boolean = expect(c)
     }
+
+    fun escape(value: String): String = buildString {
+        for (ch in value) {
+            when (ch) {
+                '"' -> append("\\\"")
+                '\\' -> append("\\\\")
+                '\n' -> append("\\n")
+                '\r' -> append("\\r")
+                '\t' -> append("\\t")
+                else -> {
+                    if (ch.code < 0x20) append("\\u%04x".format(ch.code)) else append(ch)
+                }
+            }
+        }
+    }
 }
