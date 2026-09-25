@@ -11,7 +11,7 @@ android {
         applicationId = "g.erp.satellite"
         minSdk = 24
         targetSdk = 36
-        versionCode = 1
+        versionCode = maxOf(project.extra["versionSeq"] as Int, 1)
         versionName = project.version.toString()
     }
 

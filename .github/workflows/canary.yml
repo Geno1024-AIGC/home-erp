@@ -36,7 +36,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          VERSION="0.1.$(cat android/count.pack 2>/dev/null || echo 0).$(cat android/count.build 2>/dev/null || echo 0)-$(git rev-parse --short=8 HEAD)"
+          VERSION="0.1.$GITHUB_RUN_NUMBER.$(cat android/count.pack 2>/dev/null || echo 0).$(git rev-parse --short=8 HEAD)"
           echo "canary version = $VERSION"
           gh release list --json tagName,isPrerelease --limit 100 --jq '.[] | select(.isPrerelease) | .tagName' > /tmp/old-tags.txt || true
           while read -r t; do

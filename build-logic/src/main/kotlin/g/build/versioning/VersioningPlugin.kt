@@ -9,24 +9,41 @@ class VersioningPlugin : Plugin<Project> {
     override fun apply(project: Project) {
         val base = "0.1"
         val packFile = project.file("count.pack")
-        val buildFile = project.file("count.build")
         val sha = headSha(project)
+        val seq = runSequence(project)
 
         val pack = readCount(packFile)
-        val build = readCount(buildFile)
-        val version = "$base.$pack.$build-$sha"
+        val version = "$base.$seq.$pack.$sha"
         project.version = version
+        project.extensions.extraProperties["versionSeq"] = seq
         project.logger.lifecycle("[versioning] ${project.path}: $version")
 
         val bumpPack = registerBump(project, "bumpVersionPack", "Increment the pack counter of this module.", packFile)
-        val bumpBuild = registerBump(project, "bumpVersionBuild", "Increment the build counter of this module.", buildFile)
-
         project.tasks.configureEach {
-            when {
-                name in PACKAGING_TASKS -> dependsOn(bumpPack)
-                name in RUNNING_TASKS -> dependsOn(bumpBuild)
-            }
+            if (name in PACKAGING_TASKS) dependsOn(bumpPack)
         }
+    }
+
+    /**
+     * Monotonic `$a` sequence, mirroring opencode-inspire:
+     * GitHub Actions run number on CI, otherwise the total commit count of HEAD.
+     * Both increase over time with no commit round-trip, so the version's
+     * leading sequence never stalls. `$b` is the module's own committed
+     * [packFile] packaging counter once per packaging task run.
+     */
+    private fun runSequence(project: Project): Int {
+        val ciRun = System.getenv("GITHUB_RUN_NUMBER")?.trim()
+        if (!ciRun.isNullOrEmpty()) return ciRun.toIntOrNull() ?: 0
+        return runCatching {
+            val process = ProcessBuilder("git", "rev-list", "--count", "HEAD")
+                .directory(project.rootProject.projectDir)
+                .redirectErrorStream(true)
+                .start()
+            val out = process.inputStream.bufferedReader().use { it.readText() }.trim()
+            process.waitFor()
+            check(process.exitValue() == 0) { "failed to count HEAD commits" }
+            out.toInt()
+        }.getOrElse { 0 }
     }
 
     private fun registerBump(
@@ -64,6 +81,5 @@ class VersioningPlugin : Plugin<Project> {
             "jar", "assemble", "build", "installDist", "distTar", "distZip",
             "assembleDebug", "assembleRelease", "bundleDebug", "bundleRelease",
         )
-        private val RUNNING_TASKS = setOf("run", "installDebug", "installRelease")
     }
 }
