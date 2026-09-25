@@ -6,7 +6,7 @@
     <application
         android:label="恒星卫星"
         android:usesCleartextTraffic="true"
-        android:theme="@android:style/Theme.Material.Light.NoActionBar">
+        android:theme="@style/Theme.Satellite">
 
         <activity
             android:name=".MainActivity"
