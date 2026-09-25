@@ -12,6 +12,7 @@ import android.os.Bundle
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import android.view.ViewGroup
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
@@ -102,14 +103,7 @@ class MainActivity : Activity() {
         drawer = buildDrawer()
         root.addView(drawer)
 
-        root.setOnTouchListener { _, event ->
-            if (event.actionMasked == MotionEvent.ACTION_DOWN &&
-                drawer.visibility != View.VISIBLE && event.x < dp(32)
-            ) {
-                openDrawer()
-            }
-            false
-        }
+        root.setOnTouchListener(DrawerGesture())
 
         setContentView(root)
     }
@@ -205,9 +199,91 @@ class MainActivity : Activity() {
         scrim.animate().alpha(0f).setDuration(180).withEndAction {
             scrim.visibility = View.GONE
         }.start()
-        drawer.animate().translationX(-dp(280).toFloat()).setDuration(180).withEndAction {
+        drawer.animate().translationX(-drawerWidth).setDuration(180).withEndAction {
             drawer.visibility = View.GONE
         }.start()
+    }
+
+    private val drawerWidth: Float get() = dp(280).toFloat()
+
+    private val touchSlop: Int by lazy { ViewConfiguration.get(this).scaledTouchSlop }
+
+    private fun revealProgress(translation: Float): Float = (translation + drawerWidth) / drawerWidth
+
+    private fun settleDrawer(target: Float, openNow: Boolean) {
+        drawer.animate().translationX(target).setDuration(180).withEndAction {
+            if (!openNow) drawer.visibility = View.GONE
+        }.start()
+        scrim.animate().alpha(if (openNow) 1f else 0f).setDuration(180).withEndAction {
+            if (!openNow) scrim.visibility = View.GONE
+        }.start()
+    }
+
+    /** DrawerLayout-style edge drag: pull out part of the drawer, snap open/close on release. */
+    private inner class DrawerGesture : View.OnTouchListener {
+        private var downX = 0f
+        private var downY = 0f
+        private var startTranslation = 0f
+        private var downNearEdge = false
+        private var potential = false
+        private var dragging = false
+
+        override fun onTouch(view: View, event: MotionEvent): Boolean {
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    downNearEdge = drawer.visibility != View.VISIBLE && event.x < dp(24).toFloat()
+                    potential = drawer.visibility == View.VISIBLE || downNearEdge
+                    downX = event.x
+                    downY = event.y
+                    startTranslation = drawer.translationX
+                    dragging = false
+                }
+
+                MotionEvent.ACTION_MOVE -> {
+                    if (!potential) return false
+                    val dx = event.x - downX
+                    val dy = event.y - downY
+                    if (!dragging &&
+                        kotlin.math.abs(dx) > touchSlop &&
+                        kotlin.math.abs(dx) > kotlin.math.abs(dy) * 1.5f
+                    ) {
+                        dragging = true
+                        drawer.animate().cancel()
+                        scrim.animate().cancel()
+                        drawer.visibility = View.VISIBLE
+                        scrim.visibility = View.VISIBLE
+                    }
+                    if (dragging) {
+                        val target = (startTranslation + dx).coerceIn(-drawerWidth, 0f)
+                        drawer.translationX = target
+                        scrim.alpha = revealProgress(target)
+                        return true
+                    }
+                }
+
+                MotionEvent.ACTION_UP -> {
+                    val wasDragging = dragging
+                    dragging = false
+                    potential = false
+                    if (wasDragging) {
+                        val openNow = revealProgress(drawer.translationX) >= 0.5f
+                        settleDrawer(if (openNow) 0f else -drawerWidth, openNow)
+                    } else if (downNearEdge && event.x - downX < touchSlop) {
+                        openDrawer()
+                    }
+                }
+
+                MotionEvent.ACTION_CANCEL -> {
+                    if (dragging) {
+                        val openNow = revealProgress(drawer.translationX) >= 0.5f
+                        settleDrawer(if (openNow) 0f else -drawerWidth, openNow)
+                    }
+                    dragging = false
+                    potential = false
+                }
+            }
+            return false
+        }
     }
 
     @SuppressLint("GestureBackNavigation")
