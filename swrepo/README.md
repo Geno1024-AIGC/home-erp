@@ -15,5 +15,6 @@ Part of [Home ERP](../README.md).
 | `swrepo:finances` | `g.sw.erp.finances` | home bills & budget | [finances](finances/README.md) |
 | `swrepo:chores` | `g.sw.erp.chores` | housework & schedule | [chores](chores/README.md) |
 | `swrepo:db` | `g.sw.db` | append-only-log database (reusable) | [db](db/README.md) |
+| `swrepo:heds` | `g.sw.heds` | self-describing bundle format (metadata/icon/UI/VM segments) for satellite features (reusable) | [heds](heds/README.md) |
 
 The host-side modules live outside swrepo: [`star`](../star/README.md) and [`satellite/android`](../satellite/android/README.md).

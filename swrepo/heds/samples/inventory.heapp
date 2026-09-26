@@ -1,0 +1,79 @@
+heds 1.0
+
+name: 库存
+id: g.sw.erp.inventory
+version: 0.1
+summary: 家居物品与库存
+platforms: android,web
+
+==== icon ====
+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
+==== ui ====
+{
+  "type": "page",
+  "title": "库存",
+  "children": [
+    {
+      "type": "text",
+      "text": "我的家居物品"
+    },
+    {
+      "type": "list",
+      "repeat": "items",
+      "item": {
+        "type": "row",
+        "children": [
+          {
+            "type": "image",
+            "src": "icon"
+          },
+          {
+            "type": "text",
+            "bind": "item.name"
+          },
+          {
+            "type": "text",
+            "bind": "item.qty"
+          },
+          {
+            "type": "text",
+            "bind": "item.location"
+          }
+        ]
+      }
+    },
+    {
+      "type": "button",
+      "label": "添加物品",
+      "action": "url:POST /api/inventory/items"
+    }
+  ]
+}
