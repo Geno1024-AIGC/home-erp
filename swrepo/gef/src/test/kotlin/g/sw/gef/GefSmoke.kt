@@ -8,26 +8,29 @@ object GefSmoke {
 
     @JvmStatic
     fun main(args: Array<String>) {
-        val sample = resolveSample()
+        val samplesDir = resolveSamplesDir()
+        val samples = Files.list(samplesDir).use { stream ->
+            stream.filter { it.toString().endsWith(".gef") }.toList().sorted()
+        }
+        check(samples.isNotEmpty()) { "no *.gef samples found in $samplesDir" }
 
-        val parsed = Gef.parse(Files.readString(sample))
-        check(parsed.id == "g.sw.erp.inventory") { "id mismatch: ${parsed.id}" }
-        check(parsed.name == "库存") { "name mismatch: ${parsed.name}" }
-        check(parsed.version == "0.1") { "version mismatch" }
-        check(parsed.summary == "家居物品与库存") { "summary mismatch" }
-        check(parsed.meta == mapOf("platforms" to "android,web")) { "extra meta mismatch" }
-        check(parsed.icon != null && parsed.icon.size > 0) { "icon missing" }
-        check(parsed.ui.contains("\"type\": \"page\"")) { "ui not retained verbatim" }
-        check(parsed.vms.isEmpty()) { "unexpected vm segments" }
-        check(Gef.uiJson(parsed) is Map<*, *>) { "ui must parse as json object" }
+        for (sample in samples) {
+            validate(sample)
+        }
 
-        val roundTrip = Gef.parse(Gef.write(parsed))
-        check(roundTrip == parsed) { "round-trip mismatch" }
-        check(Gef.write(roundTrip) == Gef.write(parsed)) { "write not stable" }
+        val inventory = Gef.parse(Files.readString(
+            samples.first { it.fileName.toString() == "inventory.gef" }))
+        check(inventory.name == "库存") { "name mismatch: ${inventory.name}" }
+        check(inventory.id == "g.sw.erp.inventory") { "id mismatch: ${inventory.id}" }
+        check(inventory.meta == mapOf("platforms" to "android,web")) { "extra meta mismatch" }
 
-        val withVm = parsed.copy(
-            vms = mapOf("gefvm" to byteArrayOf(0, 1, 2, 3, -1, 42)),
-        )
+        val members = Gef.parse(Files.readString(
+            samples.first { it.fileName.toString() == "members.gef" }))
+        check(members.name == "成员") { "name mismatch: ${members.name}" }
+        check(members.id == "g.sw.erp.members") { "id mismatch: ${members.id}" }
+        check(members.icon != null && members.icon.size > 0) { "icon missing" }
+
+        val withVm = inventory.copy(vms = mapOf("gefvm" to byteArrayOf(0, 1, 2, 3, -1, 42)))
         val fmt = Gef.write(withVm)
         check(fmt.contains("==== vm:gefvm ===")) { "vm segment not framed" }
         check(Gef.parse(fmt) == withVm) { "vm round-trip mismatch" }
@@ -43,17 +46,31 @@ object GefSmoke {
         expectThrows { Gef.parse("gef 1.0\nid: x\nname: n\n==== ui ====\n{}\n==== icon ====\n") }
         expectThrows { Gef.parse("gef 1.0\nid: x\nname: n\n==== vm: ====\n") }
 
-        println("[gef] smoke ok")
+        println("[gef] smoke ok: ${samples.size} samples validated")
     }
 
-    private fun resolveSample(): Path {
+    private fun validate(sample: Path) {
+        val parsed = Gef.parse(Files.readString(sample))
+        check(parsed.id.isNotBlank()) { "blank id in $sample" }
+        check(parsed.name.isNotBlank()) { "blank name in $sample" }
+        if (parsed.icon != null) check(parsed.icon.size > 0) { "empty icon in $sample" }
+        check(parsed.ui.contains("\"type\": \"page\"")) { "ui must be a page: $sample" }
+        check(Gef.uiJson(parsed) is Map<*, *>) { "ui must parse as json object: $sample" }
+        check(parsed.vms.isEmpty()) { "sample must not carry vm segments: $sample" }
+
+        val roundTrip = Gef.parse(Gef.write(parsed))
+        check(roundTrip == parsed) { "round-trip mismatch: $sample" }
+        check(Gef.write(roundTrip) == Gef.write(parsed)) { "write not stable: $sample" }
+    }
+
+    private fun resolveSamplesDir(): Path {
         val candidates = listOf(
-            Paths.get("samples/inventory.gef"),
-            Paths.get("swrepo/gef/samples/inventory.gef"),
-            Paths.get(".").toAbsolutePath().resolve("samples/inventory.gef"),
+            Paths.get("samples"),
+            Paths.get("swrepo/gef/samples"),
+            Paths.get(".").toAbsolutePath().resolve("samples"),
         )
-        return candidates.firstOrNull { Files.isRegularFile(it) }
-            ?: error("sample not found, tried: $candidates")
+        return candidates.firstOrNull { Files.isDirectory(it) }
+            ?: error("samples dir not found, tried: $candidates")
     }
 
     private fun expectThrows(block: () -> Any?) {

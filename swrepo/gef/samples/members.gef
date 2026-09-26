@@ -1,0 +1,78 @@
+gef 1.0
+
+name: 成员
+id: g.sw.erp.members
+version: 0.1
+summary: 家庭成员与用户
+platforms: android,web
+
+==== icon ====
+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
+QmCC
+==== ui ====
+{
+  "type": "page",
+  "title": "成员",
+  "children": [
+    {
+      "type": "text",
+      "text": "家庭成员"
+    },
+    {
+      "type": "list",
+      "repeat": "members",
+      "item": {
+        "type": "row",
+        "children": [
+          {
+            "type": "image",
+            "src": "emoji:1f464"
+          },
+          {
+            "type": "text",
+            "bind": "item.name"
+          },
+          {
+            "type": "text",
+            "bind": "item.id"
+          }
+        ]
+      }
+    },
+    {
+      "type": "button",
+      "label": "刷新成员",
+      "action": "url:GET /api/members/family"
+    },
+    {
+      "type": "button",
+      "label": "添加成员",
+      "action": "url:POST /api/members"
+    }
+  ]
+}

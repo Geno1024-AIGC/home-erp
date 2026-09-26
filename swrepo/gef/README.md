@@ -25,9 +25,8 @@ browser. Reusable outside this project.
 ## Sections
 
 - [FORMAT.md](FORMAT.md) — the normative container + UI DSL spec (v1).
-- [samples/inventory.gef](samples/inventory.gef) — a hand-written example:
-  metadata + embedded icon + a `page`/`list`/`text`/`button` UI tree and an
-  `url:` action.
+- [samples/inventory.gef](samples/inventory.gef) — household inventory: metadata + embedded icon + a `page`/`list`/`text`/`button` UI tree with `url:` actions.
+- [samples/members.gef](samples/members.gef) — family members: metadata + embedded icon + a `list` of members bound to `GET /api/members/family`, refresh/add actions.
 
 ```kotlin
 val bundle = Gef.parse(Files.readString(Path.of("inventory.gef")))
