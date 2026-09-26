@@ -2,6 +2,7 @@ package g.erp.satellite
 
 import android.app.Activity
 import android.annotation.SuppressLint
+import android.app.AlertDialog
 import android.app.PendingIntent
 import android.content.ContentValues
 import android.content.Context
@@ -25,11 +26,14 @@ import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
 import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.Spinner
 import android.widget.ScrollView
 import android.widget.TextView
 import android.window.OnBackInvokedDispatcher
+import g.erp.satellite.gef.Gef
+import g.erp.satellite.gef.GefStore
 import g.erp.satellite.json.Json
 import g.erp.satellite.update.InstallReceiver
 import g.erp.satellite.update.Updater
@@ -58,6 +62,10 @@ class MainActivity : Activity() {
 
     private var authToken: String? = null
     private var authUser: String? = null
+
+    private val store by lazy { GefStore(this) }
+    private var repoFlash: String? = null
+    private val pickGefRequest = 42
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -535,6 +543,8 @@ class MainActivity : Activity() {
             setOnClickListener { removeUrl() }
         })
 
+        buildRepoSection(col)
+
         col.addView(section("更新"))
 
         val channelSpinner = spinner(
@@ -577,6 +587,117 @@ class MainActivity : Activity() {
 
         val scroll = ScrollView(this).apply { addView(col) }
         contentHost.addView(scroll, LinearLayout.LayoutParams(MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+    }
+
+    // ---------------------------------------------------------------- software repo
+
+    private fun buildRepoSection(col: LinearLayout) {
+        col.addView(section("软件仓库"))
+        val installed = store.list()
+        col.addView(TextView(this).apply {
+            text = "已安装的 GEF 功能包：${installed.size}"
+            textSize = 13f
+            setTextColor(Color.GRAY)
+            setPadding(0, 0, 0, dp(4))
+        })
+        if (installed.isEmpty()) {
+            col.addView(TextView(this).apply {
+                text = "还没有安装任何功能包"
+                textSize = 14f
+                setTextColor(Color.GRAY)
+                setPadding(0, dp(2), 0, dp(2))
+            })
+        }
+        for (bundle in installed) {
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(0, dp(4), 0, dp(4))
+            }
+            val icon = Gef.iconBitmap(bundle)
+            row.addView(ImageView(this).apply {
+                if (icon != null) setImageBitmap(icon)
+                layoutParams = LinearLayout.LayoutParams(dp(28), dp(28))
+            })
+            row.addView(LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                addView(TextView(this@MainActivity).apply {
+                    text = bundle.name
+                    textSize = 15f
+                })
+                addView(TextView(this@MainActivity).apply {
+                    text = bundle.id + (bundle.version?.let { "  v$it" } ?: "")
+                    textSize = 12f
+                    setTextColor(Color.GRAY)
+                })
+            }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
+                setMargins(dp(4), 0, dp(4), 0)
+            })
+            row.addView(Button(this).apply {
+                text = "卸载"
+                setOnClickListener { confirmUninstall(bundle) }
+            })
+            col.addView(row)
+        }
+        col.addView(Button(this).apply {
+            text = "安装功能包…"
+            setOnClickListener { pickGef() }
+        })
+        repoFlash?.let { flash ->
+            col.addView(TextView(this).apply {
+                text = flash
+                textSize = 13f
+                setTextColor(Color.parseColor("#4CAF50"))
+                setPadding(0, dp(4), 0, 0)
+            })
+            repoFlash = null
+        }
+    }
+
+    private fun pickGef() {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "*/*"
+        }
+        runCatching { startActivityForResult(intent, pickGefRequest) }.onFailure {
+            repoFlash = "无法打开文件选择器：${it.message ?: "未知错误"}"
+            showSettings()
+        }
+    }
+
+    private fun confirmUninstall(bundle: Gef.Bundle) {
+        AlertDialog.Builder(this)
+            .setTitle("卸载功能包")
+            .setMessage("确定卸载「${bundle.name}」（${bundle.id}）？")
+            .setPositiveButton("卸载") { _, _ ->
+                store.uninstall(bundle.id)
+                repoFlash = "已卸载「${bundle.name}」"
+                showSettings()
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
+    @Deprecated("Deprecated in Java", ReplaceWith("registerForActivityResult"))
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != pickGefRequest || resultCode != Activity.RESULT_OK || data?.data == null) return
+        val uri = data.data!!
+        executor.execute {
+            val read = runCatching {
+                contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: error("无法读取所选文件")
+            }
+            runOnUiThread {
+                val bytes = read.getOrNull()
+                repoFlash = if (bytes == null) {
+                    "读取文件失败：${read.exceptionOrNull()?.message ?: "未知错误"}"
+                } else {
+                    val id = runCatching { store.install(bytes) }
+                    if (id.isSuccess) "已安装：${id.getOrThrow()}" else "安装失败：${id.exceptionOrNull()?.message ?: "未知错误"}"
+                }
+                showSettings()
+            }
+        }
     }
 
     private fun checkUpdate() {
