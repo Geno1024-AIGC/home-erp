@@ -23,7 +23,7 @@ Each module documents itself in its own README.
 | `swrepo:finances` | `g.sw.erp.finances` | [finances](swrepo/finances/README.md) — home bills & budget |
 | `swrepo:chores` | `g.sw.erp.chores` | [chores](swrepo/chores/README.md) — housework & schedule |
 | `swrepo:db` | `g.sw.db` | [db](swrepo/db/README.md) — lightweight append-only-log database |
-| `swrepo:heds` | `g.sw.heds` | [heds](swrepo/heds/README.md) — self-describing bundle format (metadata/icon/UI/VM segments) for satellite features |
+| `swrepo:gef` | `g.sw.gef` | [gef](swrepo/gef/README.md) — self-describing bundle format (metadata/icon/UI/VM segments) for satellite features |
 | `star` | `g.erp.star` | [star](star/README.md) — the Star application: assembles modules onto one JDK `HttpServer` |
 | `satellite:android` | `g.erp.satellite` | [satellite/android](satellite/android/README.md) — the Android satellite: side-drawer app browsing the Star's HTTP API (zero AndroidX, plain framework UI) |
 
@@ -37,7 +37,7 @@ Requires **JDK 25** (sourced from `~/.jdks` via `gradle.properties`); Gradle wra
 ./gradlew build     # compile everything; bumps each module's pack counter
 ./gradlew run       # start the Star on http://localhost:8080
 ./gradlew :swrepo:db:smoke   # run the db self-test
-./gradlew :swrepo:heds:smoke # run the HEDS bundle format round-trip self-test
+./gradlew :swrepo:gef:smoke  # run the GEF bundle format round-trip self-test
 ./gradlew :satellite:android:assembleDebug  # build the Android satellite APK
 ```
 

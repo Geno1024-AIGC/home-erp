@@ -1,20 +1,21 @@
-# HEDS — Home ERP Descriptor Segment format (container v1)
+# GEF — Geno's Executable Format (container v1)
 
 A **self-describing, single-file** bundle that a satellite scans at startup to build
 its feature list (name + optional icon), and opens on demand to read a **UI
 description** and, later, one of several **VM bytecode** segments to execute a
-feature. A `.heapp` file is completely independent of any single host (it does
+feature. A GEF file is completely independent of any single host (it does
 not depend on `swrepo/db`, on the Star, or on any one satellite platform).
 
-A HEDS bundle is a **sequence of segments**. One shared text framing is used so
+A GEF bundle is a **sequence of segments**. One shared text framing is used so
 that every platform (JVM, browser/JS, …) can parse it with a tiny hand-rolled
 reader — no third-party parser. Binary payloads (icons, bytecode) are embedded
-as Base64 so the whole bundle stays a plain text file.
+as Base64 so the whole bundle stays a plain text file. Recommended file
+suffix: `.gef`.
 
 ## 1. Container framing
 
 ```
-heds 1.0                    <- line 1: magic + container version
+gef 1.0                     <- line 1: magic + container version
 
 name: 库存                  <- metadata block: `key: value` lines,
 id: g.sw.erp.inventory         ends at the first segment frame
@@ -28,13 +29,13 @@ platforms: android,web
 ==== ui ====               <- segment frame  (1 required)
 <JSON document: the UI DSL>   raw text body
 
-==== vm:hedsvm ====        <- segment frame  (0..n, one per VM engine)
+==== vm:gefvm ====         <- segment frame  (0..n, one per VM engine)
 <Base64 bytecode>             engine name = text after `vm:`
 ```
 
 Rules:
 
-- **Line 1** must be exactly `heds 1.0`. Case-sensitive.
+- **Line 1** must be exactly `gef 1.0`. Case-sensitive.
 - **Metadata block**: every line before the first segment frame is either blank
   or `key: value`. Keys match `[A-Za-z0-9_][A-Za-z0-9_-]*`; duplicate keys are
   an error. Reserved keys: `id`, `name`, `version`, `summary`. Any other key is
@@ -100,7 +101,7 @@ Node vocabulary:
 ## 4. VM segments (future, framed now)
 
 Each `vm:<engine>` carries one opaque bytecode blob for that engine. Engines
-are per-platform or shared (e.g. a future `hedsvm` hand-rolled bytecode target).
+are per-platform or shared (e.g. a future `gefvm` hand-rolled bytecode target).
 A satellite that knows the engine can execute it; otherwise the segment is
 ignored and `fn:` actions above are left out of the rendered UI. The framing is
 fixed now so the format never needs to change to add engines.
@@ -115,5 +116,5 @@ fixed now so the format never needs to change to add engines.
 - The bundle is a plain UTF-8 text file; `String`-based frameworks on both JVM
   and browser handle it unchanged.
 
-Reference implementation + round-trip smoke: `g.sw.heds.Heds` and the
-`samples/inventory.heapp` example in this module.
+Reference implementation + round-trip smoke: `g.sw.gef.Gef` and the
+`samples/inventory.gef` example in this module.

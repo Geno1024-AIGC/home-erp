@@ -1,11 +1,11 @@
-package g.sw.heds
+package g.sw.gef
 
 import g.sw.spi.Json
 import java.util.Base64
 
-object Heds {
+object Gef {
 
-    const val MAGIC = "heds"
+    const val MAGIC = "gef"
     const val CONTAINER_VERSION = "1.0"
 
     private val FRAME = Regex("""^====\s*([A-Za-z0-9][A-Za-z0-9_\-:]*)\s*====\s*$""")

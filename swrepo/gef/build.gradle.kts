@@ -17,6 +17,6 @@ tasks.test {
 
 tasks.register<JavaExec>("smoke") {
     group = "verification"
-    mainClass.set("g.sw.heds.HedsSmoke")
+    mainClass.set("g.sw.gef.GefSmoke")
     classpath = sourceSets.named("test").get().runtimeClasspath
 }

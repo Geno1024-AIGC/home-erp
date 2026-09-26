@@ -23,7 +23,7 @@
 | `swrepo:finances` | `g.sw.erp.finances` | [finances](swrepo/finances/README.md) — 家庭账单 / 预算 |
 | `swrepo:chores` | `g.sw.erp.chores` | [chores](swrepo/chores/README.md) — 家务 / 日程 |
 | `swrepo:db` | `g.sw.db` | [db](swrepo/db/README.md) — 精简的追加式日志数据库 |
-| `swrepo:heds` | `g.sw.heds` | [heds](swrepo/heds/README.md) — 卫星功能的自描述 bundle 格式（元数据/图标/UI/VM 段） |
+| `swrepo:gef` | `g.sw.gef` | [gef](swrepo/gef/README.md) — 卫星功能的自描述 bundle 格式（元数据/图标/UI/VM 段） |
 | `star` | `g.erp.star` | [star](star/README.md) — 恒星应用：把各模块组装到单个 JDK `HttpServer` 上 |
 | `satellite:android` | `g.erp.satellite` | [satellite/android](satellite/android/README.md) — Android 卫星：侧滑抽屉应用，浏览恒星的 HTTP API（零 AndroidX、纯框架 UI） |
 
@@ -37,7 +37,7 @@
 ./gradlew build     # 编译全部；同时把各模块的 pack 计数自增
 ./gradlew run       # 启动恒星，监听 http://localhost:8080
 ./gradlew :swrepo:db:smoke   # 运行数据库自测
-./gradlew :swrepo:heds:smoke # 运行 HEDS bundle 格式往返自测
+./gradlew :swrepo:gef:smoke  # 运行 GEF bundle 格式往返自测
 ./gradlew :satellite:android:assembleDebug  # 构建 Android 卫星 APK
 ```
 
