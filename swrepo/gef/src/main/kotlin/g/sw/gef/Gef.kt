@@ -46,7 +46,7 @@ object Gef {
     }
 
     fun parse(text: String): Bundle {
-        val lines = text.lines()
+        val lines = splitLines(text)
         if (lines.isEmpty() || lines[0].trim() != "$MAGIC $CONTAINER_VERSION") {
             throw IllegalArgumentException("bad magic, expected '$MAGIC $CONTAINER_VERSION'")
         }
@@ -117,7 +117,7 @@ object Gef {
         val name = meta["name"] ?: throw IllegalArgumentException("missing metadata 'name'")
         if (id.isBlank() || name.isBlank()) throw IllegalArgumentException("'id' and 'name' must not be blank")
 
-        val ui = uiLines.joinToString("\n")
+        val ui = uiLines.joinToString("\n").trim('\n')
         val uiObj = try {
             Json.parse(ui)
         } catch (e: Exception) {
@@ -179,6 +179,12 @@ object Gef {
     }
 
     fun uiJson(bundle: Bundle): Any? = Json.parse(bundle.ui)
+
+    private fun splitLines(text: String): List<String> {
+        val parts = text.split('\n')
+        val trimmed = if (parts.isNotEmpty() && parts.last().isEmpty()) parts.dropLast(1) else parts
+        return trimmed.map { it.removeSuffix("\r") }
+    }
 
     private fun checkUi(ui: String) {
         val obj = try {
