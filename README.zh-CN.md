@@ -38,6 +38,7 @@
 ./gradlew run       # 启动恒星，监听 http://localhost:8080
 ./gradlew :swrepo:db:smoke   # 运行数据库自测
 ./gradlew :swrepo:gef:smoke  # 运行 GEF bundle 格式往返自测
+./gradlew :swrepo:gef:generateSamples  # 从 GenSample 重新生成 samples/*.gef
 ./gradlew :satellite:android:assembleDebug  # 构建 Android 卫星 APK
 ```
 

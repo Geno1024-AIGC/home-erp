@@ -28,6 +28,11 @@ browser. Reusable outside this project.
 - [samples/inventory.gef](samples/inventory.gef) — household inventory: metadata + embedded icon + a `page`/`list`/`text`/`button` UI tree with `url:` actions.
 - [samples/members.gef](samples/members.gef) — family members: metadata + embedded icon + a `list` of members bound to `GET /api/members/family`, refresh/add actions.
 
+The samples under `samples/` are **build output, not hand-written**: `GenSample`
+composes the bundles in Kotlin (UI DSL as data, icons from
+`src/main/resources/icons/`) and writes them through `Gef.write`. Running
+`./gradlew :swrepo:gef:generateSamples` reproduces them byte-for-byte.
+
 ```kotlin
 val bundle = Gef.parse(Files.readString(Path.of("inventory.gef")))
 bundle.name              // "库存" — feature-list title

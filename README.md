@@ -38,6 +38,7 @@ Requires **JDK 25** (sourced from `~/.jdks` via `gradle.properties`); Gradle wra
 ./gradlew run       # start the Star on http://localhost:8080
 ./gradlew :swrepo:db:smoke   # run the db self-test
 ./gradlew :swrepo:gef:smoke  # run the GEF bundle format round-trip self-test
+./gradlew :swrepo:gef:generateSamples  # rebuild the samples/*.gef from GenSample
 ./gradlew :satellite:android:assembleDebug  # build the Android satellite APK
 ```
 
