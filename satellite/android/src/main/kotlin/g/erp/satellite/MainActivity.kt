@@ -8,6 +8,7 @@ import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageInstaller
+import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.Typeface
 import android.net.Uri
@@ -33,12 +34,12 @@ import android.widget.ScrollView
 import android.widget.TextView
 import android.window.OnBackInvokedDispatcher
 import g.erp.satellite.gef.Gef
+import g.erp.satellite.gef.GefRenderer
 import g.erp.satellite.gef.GefStore
 import g.erp.satellite.json.Json
 import g.erp.satellite.update.InstallReceiver
 import g.erp.satellite.update.Updater
 import java.io.File
-import java.util.Locale
 import java.util.concurrent.Executors
 
 class MainActivity : Activity() {
@@ -46,13 +47,20 @@ class MainActivity : Activity() {
     private val executor = Executors.newSingleThreadExecutor()
 
     private lateinit var drawer: LinearLayout
+    private lateinit var drawerItems: LinearLayout
     private lateinit var scrim: View
     private lateinit var contentHost: LinearLayout
     private lateinit var titleView: TextView
 
     private var baseUrl = StarClient.DEFAULT_BASE
     private lateinit var savedUrls: MutableList<String>
-    private var current: Feature = Features.MEMBERS
+
+    private sealed class Nav {
+        object Settings : Nav()
+        class Package(val bundle: Gef.Bundle) : Nav()
+    }
+
+    private lateinit var current: Nav
 
     private var selectedChannel: Updater.Channel = Updater.Channel.CANARY
     private var selectedSource: Updater.Source = Updater.SOURCES.first()
@@ -84,6 +92,7 @@ class MainActivity : Activity() {
         baseUrl = savedUrls.firstOrNull() ?: StarClient.DEFAULT_BASE
         authToken = prefs().getString("authToken", null)
         authUser = prefs().getString("authUser", null)
+        current = store.list().firstOrNull()?.let { Nav.Package(it) } ?: Nav.Settings
         buildUi()
         show(current)
     }
@@ -154,12 +163,10 @@ class MainActivity : Activity() {
             setPadding(dp(24), 0, dp(24), dp(12))
         })
 
-        for (feature in Features.ALL) {
-            panel.addView(drawerItem(feature.title) {
-                select(feature)
-                closeDrawer()
-            })
+        drawerItems = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
         }
+        panel.addView(drawerItems)
 
         panel.addView(View(this).apply {
             layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, 0, 1f)
@@ -176,17 +183,55 @@ class MainActivity : Activity() {
         return panel
     }
 
-    private fun drawerItem(label: String, onClick: () -> Unit): TextView = TextView(this).apply {
-        text = label
-        textSize = 16f
-        setPadding(dp(24), dp(14), dp(24), dp(14))
-        layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-        setOnClickListener { onClick() }
+    private fun fillDrawerItems() {
+        drawerItems.removeAllViews()
+        val installed = store.list()
+        if (installed.isEmpty()) {
+            drawerItems.addView(TextView(this).apply {
+                text = "未安装功能包，请到 设置 → 软件仓库 安装"
+                textSize = 12f
+                setTextColor(Color.GRAY)
+                setPadding(dp(24), dp(8), dp(24), dp(8))
+            })
+        } else {
+            for (bundle in installed) {
+                drawerItems.addView(drawerItem(bundle.name, Gef.iconBitmap(bundle)) {
+                    select(Nav.Package(bundle))
+                    closeDrawer()
+                })
+            }
+        }
+        drawerItems.addView(drawerItem("设置") {
+            select(Nav.Settings)
+            closeDrawer()
+        })
+    }
+
+    private fun drawerItem(label: String, icon: Bitmap? = null, onClick: () -> Unit): View {
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(24), dp(10), dp(24), dp(10))
+            layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+            setOnClickListener { onClick() }
+        }
+        if (icon != null) {
+            row.addView(ImageView(this).apply {
+                setImageBitmap(icon)
+                layoutParams = LinearLayout.LayoutParams(dp(22), dp(22)).apply { setMargins(0, 0, dp(10), 0) }
+            })
+        }
+        row.addView(TextView(this).apply {
+            text = label
+            textSize = 16f
+        })
+        return row
     }
 
     // ---------------------------------------------------------------- drawer
 
     private fun openDrawer() {
+        fillDrawerItems()
         drawer.visibility = View.VISIBLE
         scrim.visibility = View.VISIBLE
         scrim.animate().alpha(1f).setDuration(200).start()
@@ -246,6 +291,7 @@ class MainActivity : Activity() {
                         dragging = true
                         drawer.animate().cancel()
                         scrim.animate().cancel()
+                        fillDrawerItems()
                         drawer.visibility = View.VISIBLE
                         scrim.visibility = View.VISIBLE
                     }
@@ -288,40 +334,43 @@ class MainActivity : Activity() {
 
     // ---------------------------------------------------------------- screens
 
-    private fun select(feature: Feature) {
-        current = feature
-        show(feature)
+    private fun select(nav: Nav) {
+        current = nav
+        show(nav)
     }
 
-    private fun show(feature: Feature) {
-        titleView.text = feature.title
-        if (feature === Features.SETTINGS) {
-            showSettings()
-            return
+    private fun show(nav: Nav) {
+        when (nav) {
+            Nav.Settings -> showSettings()
+            is Nav.Package -> showPackage(nav.bundle)
         }
+    }
+
+    private fun showPackage(bundle: Gef.Bundle, note: String? = null) {
+        current = Nav.Package(bundle)
         if (savedUrls.isEmpty()) {
-            showSetup(feature)
+            showSetup()
             return
         }
+        titleView.text = runCatching { GefRenderer(this, bundle, emptyMap(), {}, {}).pageTitle() }.getOrNull() ?: bundle.name
         contentHost.removeViews(1, contentHost.childCount - 1)
         contentHost.addView(message("加载中…"))
-
-        val request = feature
         executor.execute {
-            val result = runCatching { StarClient.get(baseUrl, request.path, authToken) }
+            val result = runCatching { fetchPageData(bundle) }
             runOnUiThread {
-                if (current !== request) return@runOnUiThread
+                val nav = current
+                if (nav !is Nav.Package || nav.bundle.id != bundle.id) return@runOnUiThread
                 contentHost.removeViews(1, contentHost.childCount - 1)
                 result.fold(
-                    onSuccess = { body -> render(request, body) },
+                    onSuccess = { data -> renderPackage(bundle, data, note) },
                     onFailure = { e ->
                         if (e is ApiException && e.code == 401) {
                             authToken = null
                             authUser = null
                             prefs().edit().remove("authToken").remove("authUser").apply()
-                            renderNeedLogin(request)
+                            needLoginBox()
                         } else {
-                            renderError(request, e)
+                            packageErrorBox(bundle, e)
                         }
                     },
                 )
@@ -329,31 +378,81 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun render(feature: Feature, body: String) {
-        val items = parseList(body, feature.listKey)
-        if (items.isEmpty()) {
-            contentHost.addView(message("暂无数据"))
-            return
+    private fun fetchPageData(bundle: Gef.Bundle): Map<String, Any?> {
+        val page = runCatching { Json.parse(bundle.ui) as? Map<*, *> }.getOrNull() ?: return emptyMap()
+        val lists = page["children"] as? List<*> ?: return emptyMap()
+        val data = LinkedHashMap<String, Any?>()
+        for (child in lists) {
+            val node = child as? Map<*, *> ?: continue
+            if (node["type"] != "list") continue
+            val repeat = node["repeat"] as? String ?: continue
+            if (repeat.isBlank() || data.containsKey(repeat)) continue
+            val parsed = urlAction(node["action"] as? String)
+            if (parsed?.first != "GET") continue
+            val body = StarClient.get(baseUrl, parsed.second, authToken)
+            val root = Json.parse(body) as? Map<*, *>
+            data[repeat] = root?.get(repeat)
         }
-        val rows = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-        }
-        for (item in items) {
-            rows.addView(TextView(this).apply {
-                text = feature.row(item)
-                textSize = 15f
-                setPadding(dp(16), dp(12), dp(16), dp(12))
-                setBackgroundColor(Color.WHITE)
-            })
-            rows.addView(View(this).apply {
-                setBackgroundColor(Color.rgb(230, 232, 236))
-                layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, 1)
-            })
-        }
-        contentHost.addView(rows, LinearLayout.LayoutParams(MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        return data
     }
 
-    private fun renderError(feature: Feature, e: Throwable) {
+    private fun urlAction(action: String?): Pair<String, String>? {
+        if (action == null || !action.startsWith("url:")) return null
+        val rest = action.removePrefix("url:").trim()
+        val sp = rest.indexOf(' ')
+        if (sp <= 0) return null
+        return rest.substring(0, sp).trim().uppercase() to rest.substring(sp + 1).trim()
+    }
+
+    private fun renderPackage(bundle: Gef.Bundle, data: Map<String, Any?>, note: String?) {
+        val col = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(16), dp(16), dp(16))
+        }
+        if (note != null) {
+            col.addView(TextView(this).apply {
+                text = note
+                textSize = 13f
+                setTextColor(Color.parseColor("#B3261E"))
+                setPadding(0, 0, 0, dp(8))
+            })
+        }
+        val renderer = GefRenderer(
+            this, bundle, data,
+            onRefresh = { showPackage(bundle) },
+            onPost = { path -> postPackage(bundle, path) },
+        )
+        renderer.build(col)
+        contentHost.addView(ScrollView(this).apply { addView(col) },
+            LinearLayout.LayoutParams(MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+    }
+
+    private fun postPackage(bundle: Gef.Bundle, path: String) {
+        contentHost.removeViews(1, contentHost.childCount - 1)
+        contentHost.addView(message("提交中…"))
+        executor.execute {
+            val result = runCatching { StarClient.post(baseUrl, path, "{}", authToken) }
+            runOnUiThread {
+                val nav = current
+                if (nav !is Nav.Package || nav.bundle.id != bundle.id) return@runOnUiThread
+                if (result.isFailure && result.exceptionOrNull() is ApiException &&
+                    (result.exceptionOrNull() as ApiException).code == 401
+                ) {
+                    authToken = null
+                    authUser = null
+                    prefs().edit().remove("authToken").remove("authUser").apply()
+                    needLoginBox()
+                    return@runOnUiThread
+                }
+                showPackage(bundle, result.fold(
+                    onSuccess = { null },
+                    onFailure = { "操作失败：${it.message ?: "未知错误"}" },
+                ))
+            }
+        }
+    }
+
+    private fun packageErrorBox(bundle: Gef.Bundle, e: Throwable) {
         val box = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
@@ -367,12 +466,12 @@ class MainActivity : Activity() {
         })
         box.addView(Button(this).apply {
             text = "重试"
-            setOnClickListener { show(feature) }
+            setOnClickListener { showPackage(bundle) }
         })
         contentHost.addView(box, LinearLayout.LayoutParams(MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
     }
 
-    private fun renderNeedLogin(feature: Feature) {
+    private fun needLoginBox() {
         val box = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
@@ -385,8 +484,8 @@ class MainActivity : Activity() {
             gravity = Gravity.CENTER_HORIZONTAL
         })
         box.addView(Button(this).apply {
-            text = "去登录"
-            setOnClickListener { show(Features.SETTINGS) }
+            text = "去设置登录"
+            setOnClickListener { select(Nav.Settings) }
         })
         contentHost.addView(box, LinearLayout.LayoutParams(MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
     }
@@ -399,19 +498,11 @@ class MainActivity : Activity() {
         setPadding(0, dp(48), 0, 0)
     }
 
-    private fun parseList(body: String, key: String): List<Map<String, Any?>> {
-        val root = Json.parse(body) as? Map<*, *> ?: return emptyList()
-        val list = root[key] as? List<*> ?: return emptyList()
-        return list.mapNotNull { it as? Map<*, *> }.map { map ->
-            map.entries.associate { (k, v) -> k.toString() to v }
-        }
-    }
-
     private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
 
     // ---------------------------------------------------------------- star setup
 
-    private fun showSetup(feature: Feature) {
+    private fun showSetup() {
         contentHost.removeViews(1, contentHost.childCount - 1)
         val col = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -493,6 +584,7 @@ class MainActivity : Activity() {
     // ---------------------------------------------------------------- settings
 
     private fun showSettings() {
+        titleView.text = "设置"
         val prefs = getSharedPreferences("sat", Context.MODE_PRIVATE)
         selectedChannel = Updater.Channel.from(prefs.getString("channel", null) ?: "CANARY")
         selectedSource = Updater.sourceFrom(prefs.getString("source", null) ?: "github")
@@ -971,72 +1063,4 @@ class MainActivity : Activity() {
     companion object {
         private val MATCH_PARENT = ViewGroup.LayoutParams.MATCH_PARENT
     }
-}
-
-internal fun formatMoney(value: Double): String =
-    String.format(Locale.ROOT, "%.2f", value)
-
-internal fun intText(value: Any?): String = when (value) {
-    is Double -> if (!value.isInfinite() && value == Math.floor(value)) value.toLong().toString() else value.toString()
-    is Number -> value.toLong().toString()
-    else -> "?"
-}
-
-internal abstract class Feature(
-    val title: String,
-    val path: String,
-    val listKey: String,
-) {
-    abstract fun row(item: Map<String, Any?>): String
-}
-
-internal object Features {
-    val MEMBERS = object : Feature("成员", "/api/members/family", "members") {
-        override fun row(item: Map<String, Any?>): String =
-            item["name"] as? String ?: item["id"]?.toString() ?: "?"
-    }
-
-    val INVENTORY = object : Feature("库存", "/api/inventory/items", "items") {
-        override fun row(item: Map<String, Any?>): String = buildString {
-            append(item["name"] as? String ?: "?")
-            append("  ×")
-            append(intText(item["qty"]))
-            val location = item["location"] as? String
-            if (!location.isNullOrEmpty()) {
-                append("  ·  ")
-                append(location)
-            }
-        }
-    }
-
-    val FINANCES = object : Feature("账单", "/api/finances/ledger", "ledger") {
-        override fun row(item: Map<String, Any?>): String = buildString {
-            val amount = item["amount"] as? Double ?: 0.0
-            if (amount < 0) append("支出  ¥").append(formatMoney(-amount))
-            else append("收入  ¥").append(formatMoney(amount))
-            val note = item["note"] as? String
-            if (!note.isNullOrEmpty()) {
-                append("  ·  ")
-                append(note)
-            }
-        }
-    }
-
-    val CHORES = object : Feature("家务", "/api/chores/tasks", "tasks") {
-        override fun row(item: Map<String, Any?>): String = buildString {
-            append(item["title"] as? String ?: "?")
-            val assignee = item["assignee"] as? String
-            if (!assignee.isNullOrEmpty()) {
-                append("  ·  ")
-                append(assignee)
-            }
-            append(if (item["done"] == true) "  已完成" else "  未完成")
-        }
-    }
-
-    val SETTINGS = object : Feature("设置", "", "") {
-        override fun row(item: Map<String, Any?>): String = ""
-    }
-
-    val ALL = listOf(MEMBERS, INVENTORY, FINANCES, CHORES, SETTINGS)
 }
