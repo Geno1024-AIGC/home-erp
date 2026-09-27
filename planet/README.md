@@ -15,15 +15,19 @@ the JDK only, exactly like the Star.
   — the Planet strips the alias prefix, ships the request over the Star's tunnel
   connection (loaded with the shared relay protocol in `swrepo:relay`), and
   relays the reply back verbatim.
+- The Planet **keeps no data**. Every `--refresh` milliseconds it pulls
+  `GET /api/topology` from each connected Star over its tunnel and caches it in
+  memory, serving `GET /planet/topology` from that cache — so a satellite can
+  learn the whole deployment (Star + all Planets) from any single Planet.
 
 ## Usage
 
 ```bash
 ./gradlew :planet:distZip
-# start the star at home, dialing this planet:
-./gradlew :star:run --args="8080 --planet=planet.example.com:9091 --alias=home"
-# start the planet (cloud host):
-build/install/planet/bin/planet --http=9090 --tunnel=9091
+# start the star at home, dialing this planet (two plans, each a --planet flag):
+./gradlew :star:run --args="8080 --planet=planet.example.com:9090:9091 --alias=home"
+# start the planet (cloud host); --refresh tunes the topology pull interval, default 30s:
+build/install/planet/bin/planet --http=9090 --tunnel=9091 --refresh=30
 ```
 
 ## Endpoints
@@ -32,9 +36,10 @@ build/install/planet/bin/planet --http=9090 --tunnel=9091
 |---|---|
 | `GET /` | HTML discovery page (connected stars) |
 | `GET /planet/stars` | JSON list of connected stars (`alias`, `remote`) |
+| `GET /planet/topology` | cached topology pulled from the Stars (`503` before the first pull) |
 | `GET\|POST /<alias>/…` | relayed to the matching Star (any method, query preserved) |
 
 Unknown or offline stars answer `502`; a Star that does not answer within the
 relay timeout answers `504`.
 
-Run the relay self-test with `./gradlew :swrepo:relay:smoke`.
+Run the relay and topology self-tests with `./gradlew :swrepo:relay:smoke :swrepo:topology:smoke`.

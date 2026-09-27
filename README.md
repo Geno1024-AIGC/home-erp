@@ -24,6 +24,7 @@ Each module documents itself in its own README.
 | `swrepo:finances` | `g.sw.erp.finances` | [finances](swrepo/finances/README.md) — home bills & budget |
 | `swrepo:chores` | `g.sw.erp.chores` | [chores](swrepo/chores/README.md) — housework & schedule |
 | `swrepo:db` | `g.sw.db` | [db](swrepo/db/README.md) — lightweight append-only-log database |
+| `swrepo:topology` | `g.sw.erp.topology` | [topology](swrepo/topology/README.md) — deployment-address book: Star persists it, Planets cache it, Satellites probe it |
 | `swrepo:gef` | `g.sw.gef` | [gef](swrepo/gef/README.md) — self-describing bundle format (metadata/icon/UI/VM segments) for satellite features |
 | `star` | `g.erp.star` | [star](star/README.md) — the Star application: assembles modules onto one JDK `HttpServer` |
 | `planet` | `g.erp.planet` | [planet](planet/README.md) — the Planet application: cloud discovery + HTTP relay to Stars |
@@ -39,8 +40,10 @@ Requires **JDK 25** (sourced from `~/.jdks` via `gradle.properties`); Gradle wra
 ./gradlew build     # compile everything; bumps each module's pack counter
 ./gradlew run       # start the Star on http://localhost:8080
 ./gradlew :planet:run --args="--http=9090 --tunnel=9091"   # start the Planet relay
+./gradlew :star:run --args="8080 --planet=mirror.example:9090"  # Star dialing a Planet
 ./gradlew :swrepo:db:smoke   # run the db self-test
 ./gradlew :swrepo:relay:smoke  # run the Planet↔Star tunnel round-trip self-test
+./gradlew :swrepo:topology:smoke  # run the topology address-book self-test
 ./gradlew :swrepo:gef:smoke  # run the GEF bundle format round-trip self-test
 ./gradlew :swrepo:gef:generateSamples  # rebuild the samples/*.gef from GenSample
 ./gradlew :satellite:android:assembleDebug  # build the Android satellite APK
