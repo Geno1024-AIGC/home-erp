@@ -14,6 +14,7 @@ application {
 
 dependencies {
     implementation(project(":swrepo:spi"))
+    implementation(project(":swrepo:relay"))
     implementation(project(":swrepo:db"))
     implementation(project(":swrepo:auth"))
     implementation(project(":swrepo:members"))
