@@ -11,6 +11,10 @@ dependencies {
     implementation(project(":swrepo:spi"))
 }
 
+tasks.test {
+    failOnNoDiscoveredTests = false
+}
+
 tasks.register<JavaExec>("smoke") {
     group = "verification"
     mainClass.set("g.sw.relay.RelaySmoke")
