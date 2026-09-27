@@ -19,9 +19,11 @@ class RelayClient(
     private val starPort: Int,
     private val executor: Executor,
     private val retryMillis: Long = 5_000L,
+    private val onStatus: ((Boolean) -> Unit)? = null,
 ) {
 
     @Volatile private var running = true
+    @Volatile private var connected = false
     private val thread = Thread(::dialLoop, "relay-client").apply { isDaemon = true }
 
     fun start() {
@@ -32,12 +34,22 @@ class RelayClient(
         running = false
     }
 
+    fun isConnected(): Boolean = connected
+
+    private fun reportStatus(open: Boolean) {
+        if (open == connected) return
+        connected = open
+        onStatus?.invoke(open)
+    }
+
     private fun dialLoop() {
         while (running) {
             try {
                 runSession()
             } catch (e: IOException) {
                 if (running) println("[relay] planet connection lost: ${e.message}")
+            } finally {
+                reportStatus(false)
             }
             if (!running) break
             try {
@@ -53,6 +65,7 @@ class RelayClient(
             if (!running) return
             val conn = RelayConnection(socket)
             conn.sendHello(alias)
+            reportStatus(true)
             while (running) {
                 val frame = conn.read() ?: break
                 when (frame.type) {
