@@ -3,6 +3,7 @@
 /build-logic/build/
 /satellite/android/build/
 /star/build/
+/planet/build/
 /swrepo/*/build/
 local.properties
 satellite/android/.cxx/
