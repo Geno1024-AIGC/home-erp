@@ -54,6 +54,7 @@ class MainActivity : Activity() {
 
     private var baseUrl = StarClient.DEFAULT_BASE
     private lateinit var savedUrls: MutableList<String>
+    private lateinit var connectionLabel: TextView
 
     private sealed class Nav {
         object Settings : Nav()
@@ -95,6 +96,77 @@ class MainActivity : Activity() {
         current = store.list().firstOrNull()?.let { Nav.Package(it) } ?: Nav.Settings
         buildUi()
         show(current)
+        bootConnection()
+    }
+
+    /**
+     * 拓扑感知连接:每次启动先直连已存的恒星,不可达再挨个试行星;
+     * 拿到拓扑后写回本地。整个过程单线程走 [executor],避免与界面请求竞争。
+     */
+    private fun bootConnection() {
+        connectionLabel?.text = "正在探测连接…"
+        executor.execute {
+            val chosen = probeConnection()
+            setBaseUrlSafely(chosen?.first)
+            runOnUiThread {
+                connectionLabel?.text = if (chosen == null) {
+                    "无法连接恒星，请检查网络或手动选择地址"
+                } else {
+                    val via = chosen.second
+                    "当前连接：$via ${chosen.first}"
+                }
+            }
+        }
+    }
+
+    private fun setBaseUrlSafely(newBase: String?) {
+        if (newBase.isNullOrBlank()) return
+        baseUrl = newBase
+        if (!savedUrls.contains(newBase)) {
+            savedUrls.add(newBase)
+            saveUrls()
+        }
+    }
+
+    /** 返回 (数据入口, 直连/经行星 标签),探测失败返回 null。短路优先,总耗时受每个候选 [Topology.CONNECT_TIMEOUT_MS] 限制。 */
+    private fun probeConnection(): Pair<String, String>? {
+        val stored = Topology.load(this)
+        val star = Topology.star(stored)
+        val starName = Topology.starName(stored) ?: star?.get("name")?.toString() ?: "home"
+        val candidates = LinkedHashMap<String, String>() // dataBase -> relyBase
+
+        fun addCandidate(dataBase: String, relyBase: String) {
+            if (dataBase.isNotBlank() && !candidates.containsKey(dataBase)) candidates[dataBase] = relyBase
+        }
+
+        star?.let { addCandidate(Topology.httpBase(it), Topology.httpBase(it)) }
+        savedUrls.toList().forEach { addCandidate(it, it) }
+        val planets = Topology.planets(stored)
+            .sortedWith(compareByDescending { if (Topology.isReachable(it)) 1 else 0 })
+        for (p in planets) {
+            addCandidate(Topology.proxyBase(p, starName), Topology.httpBase(p))
+        }
+
+        for ((dataBase, relyBase) in candidates) {
+            val isPlanet = dataBase != relyBase
+            val path = if (isPlanet) "/planet/topology" else "/api/topology"
+            val body = runCatching {
+                StarClient.get(relyBase, path, null, Topology.CONNECT_TIMEOUT_MS)
+            }.getOrNull() ?: continue
+            val topology = normalizeTopology(body) ?: continue
+            Topology.save(this, topology)
+            return dataBase to if (isPlanet) "经行星" else "恒星直连"
+        }
+        return null
+    }
+
+    private fun normalizeTopology(body: String): Map<String, Any?>? {
+        val root = Json.parse(body)
+        val map = root as? Map<*, *> ?: return null
+        if (map["star"] == null && (map["planets"] as? List<*>)?.isEmpty() != false) return null
+        val out = LinkedHashMap<String, Any?>()
+        for ((k, v) in map) out[k.toString()] = v
+        return out
     }
 
     private fun prefs() = getSharedPreferences("sat", Context.MODE_PRIVATE)
@@ -598,13 +670,25 @@ class MainActivity : Activity() {
 
         buildAccountSection(col)
 
-        col.addView(section("恒星"))
+        col.addView(section("恒星 · 连接"))
 
-        col.addView(TextView(this).apply {
-            text = "当前恒星：$baseUrl"
+        connectionLabel = TextView(this).apply {
             textSize = 14f
             setTextColor(Color.GRAY)
             setPadding(0, 0, 0, dp(4))
+        }
+        col.addView(connectionLabel)
+
+        col.addView(Button(this).apply {
+            text = "重新探测连接"
+            setOnClickListener { bootConnection() }
+        })
+
+        col.addView(TextView(this).apply {
+            text = "自动按 恒星直连 → 全部行星 顺序探测最短延迟可达的入口，在设置里可手动维护恒星地址。"
+            textSize = 13f
+            setTextColor(Color.LTGRAY)
+            setPadding(0, dp(4), 0, dp(4))
         })
 
         val urlSpinner = spinner(

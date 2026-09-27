@@ -15,6 +15,39 @@ object Json {
         return value
     }
 
+    fun write(value: Any?): String = buildString { writeValue(this, value) }
+
+    private fun writeValue(out: StringBuilder, value: Any?) {
+        when (value) {
+            null -> out.append("null")
+            is String -> out.append('"').append(escape(value)).append('"')
+            is Boolean -> out.append(if (value) "true" else "false")
+            is Number -> out.append(value.toString())
+            is Map<*, *> -> {
+                out.append('{')
+                var first = true
+                for ((k, v) in value) {
+                    if (!first) out.append(',')
+                    first = false
+                    out.append('"').append(escape(k.toString())).append('"').append(':')
+                    writeValue(out, v)
+                }
+                out.append('}')
+            }
+            is Iterable<*> -> {
+                out.append('[')
+                var first = true
+                for (v in value) {
+                    if (!first) out.append(',')
+                    first = false
+                    writeValue(out, v)
+                }
+                out.append(']')
+            }
+            else -> out.append('"').append(escape(value.toString())).append('"')
+        }
+    }
+
     class Reader(s: String) {
         private val text = s
         var pos = 0

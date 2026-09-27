@@ -8,18 +8,20 @@ internal class ApiException(val code: Int, message: String) : Exception(message)
 internal object StarClient {
 
     const val DEFAULT_BASE = "http://10.0.2.2:8080"
+    const val ADMIN_TIMEOUT_MS = 5000
 
-    fun get(baseUrl: String, path: String, token: String? = null): String = request("GET", baseUrl, path, token, null)
+    fun get(baseUrl: String, path: String, token: String? = null, timeoutMs: Int = ADMIN_TIMEOUT_MS): String =
+        request("GET", baseUrl, path, token, null, timeoutMs)
 
-    fun post(baseUrl: String, path: String, body: String, token: String? = null): String =
-        request("POST", baseUrl, path, token, body)
+    fun post(baseUrl: String, path: String, body: String, token: String? = null, timeoutMs: Int = ADMIN_TIMEOUT_MS): String =
+        request("POST", baseUrl, path, token, body, timeoutMs)
 
-    private fun request(method: String, baseUrl: String, path: String, token: String?, body: String?): String {
+    private fun request(method: String, baseUrl: String, path: String, token: String?, body: String?, timeoutMs: Int): String {
         val conn = URL(baseUrl.trimEnd('/') + path).openConnection() as HttpURLConnection
         try {
             conn.requestMethod = method
-            conn.connectTimeout = 5000
-            conn.readTimeout = 10000
+            conn.connectTimeout = timeoutMs
+            conn.readTimeout = timeoutMs * 2
             conn.setRequestProperty("Accept", "application/json")
             token?.let { conn.setRequestProperty("Authorization", "Bearer $it") }
             if (body != null) {
