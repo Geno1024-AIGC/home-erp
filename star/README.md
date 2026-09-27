@@ -21,6 +21,19 @@ The `Router` does exact `method + path` matching and answers unmatched requests 
 ./gradlew :star:distZip   # distribution zip (published as part of every canary release)
 ```
 
+## Reaching the Star from outside (Planet relay)
+
+The Star can dial out to a [Planet](../planet/README.md) so remote satellites can
+reach it behind a NAT:
+
+```bash
+./gradlew :star:run --args="--planet=planet.example.com:9091 --alias=home"
+```
+
+Once connected, the Star appears on the Planet under its `alias`
+(`http://<planet>:9090/home/…`). The `--alias` defaults to `home`; with no
+`--planet` the Star is reachable only on the local network.
+
 ## Endpoints (sample)
 
 | Endpoint | Description |

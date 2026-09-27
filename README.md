@@ -17,6 +17,7 @@ Each module documents itself in its own README.
 | Module | Package | README |
 |---|---|---|
 | `swrepo:spi` | `g.sw.spi` | [spi](swrepo/spi/README.md) — module SPI: `ErpModule`, `MountContext`, HTTP helpers |
+| `swrepo:relay` | `g.sw.relay` | [relay](swrepo/relay/README.md) — Planet↔Star tunnel: reusable frame codec, relay pool and dialing client |
 | `swrepo:auth` | `g.sw.erp.auth` | [auth](swrepo/auth/README.md) — accounts & auth: password (PBKDF2) + SSH-key (ed25519) login |
 | `swrepo:members` | `g.sw.erp.members` | [members](swrepo/members/README.md) — family members / users |
 | `swrepo:inventory` | `g.sw.erp.inventory` | [inventory](swrepo/inventory/README.md) — household items & stock |
@@ -25,6 +26,7 @@ Each module documents itself in its own README.
 | `swrepo:db` | `g.sw.db` | [db](swrepo/db/README.md) — lightweight append-only-log database |
 | `swrepo:gef` | `g.sw.gef` | [gef](swrepo/gef/README.md) — self-describing bundle format (metadata/icon/UI/VM segments) for satellite features |
 | `star` | `g.erp.star` | [star](star/README.md) — the Star application: assembles modules onto one JDK `HttpServer` |
+| `planet` | `g.erp.planet` | [planet](planet/README.md) — the Planet application: cloud discovery + HTTP relay to Stars |
 | `satellite:android` | `g.erp.satellite` | [satellite/android](satellite/android/README.md) — the Android satellite: side-drawer app browsing the Star's HTTP API (zero AndroidX, plain framework UI) |
 
 See [swrepo/README.md](swrepo/README.md) for the software repository layout.
@@ -36,7 +38,9 @@ Requires **JDK 25** (sourced from `~/.jdks` via `gradle.properties`); Gradle wra
 ```bash
 ./gradlew build     # compile everything; bumps each module's pack counter
 ./gradlew run       # start the Star on http://localhost:8080
+./gradlew :planet:run --args="--http=9090 --tunnel=9091"   # start the Planet relay
 ./gradlew :swrepo:db:smoke   # run the db self-test
+./gradlew :swrepo:relay:smoke  # run the Planet↔Star tunnel round-trip self-test
 ./gradlew :swrepo:gef:smoke  # run the GEF bundle format round-trip self-test
 ./gradlew :swrepo:gef:generateSamples  # rebuild the samples/*.gef from GenSample
 ./gradlew :satellite:android:assembleDebug  # build the Android satellite APK
@@ -44,7 +48,7 @@ Requires **JDK 25** (sourced from `~/.jdks` via `gradle.properties`); Gradle wra
 
 ## Satellite release & update
 
-CI (`.github/workflows/canary.yml`) builds the whole repo on every push to `master` (`workflow_dispatch` also available) and publishes one GitHub **pre-release** (Canary) carrying the Star dist zip plus the debug/release APKs. Exactly one pre-release is kept — the previous one is deleted on each run.
+CI (`.github/workflows/canary.yml`) builds the whole repo on every push to `master` (`workflow_dispatch` also available) and publishes one GitHub **pre-release** (Canary) carrying the Star and Planet dist zips plus the debug/release APKs and the generated GEF packages. Exactly one pre-release is kept — the previous one is deleted on each run.
 
 - Both APKs are signed with the shared debug keystore `satellite/android/signing/debug.jks` (standard `androiddebugkey`, password `android`), so every CI run produces the **same signature** and a Canary update installs over the previous one, no GitHub secrets required. A future stable channel may swap in a secret signing key without touching the pipeline.
 - In-app **设置 → 更新**: pick 更新渠道 (**Canary** = pre-releases, **正式版** = regular releases — none published yet) and 更新源 (GitHub or mirror prefixes ghproxy / gh-proxy / ghfast.top), then 检查更新 and 下载并安装.

@@ -9,6 +9,7 @@ Part of [Home ERP](../README.md).
 | Module | Package | Purpose | README |
 |---|---|---|---|
 | `swrepo:spi` | `g.sw.spi` | module SPI: `ErpModule`, `MountContext`, HTTP helpers (reusable) | [spi](spi/README.md) |
+| `swrepo:relay` | `g.sw.relay` | Planet↔Star relay tunnel: frame codec, relay pool, dialing client (reusable) | [relay](relay/README.md) |
 | `swrepo:auth` | `g.sw.erp.auth` | accounts & authentication: password (PBKDF2) + SSH-key (ed25519) login | [auth](auth/README.md) |
 | `swrepo:members` | `g.sw.erp.members` | family members / users | [members](members/README.md) |
 | `swrepo:inventory` | `g.sw.erp.inventory` | household items & stock | [inventory](inventory/README.md) |
@@ -17,4 +18,4 @@ Part of [Home ERP](../README.md).
 | `swrepo:db` | `g.sw.db` | append-only-log database (reusable) | [db](db/README.md) |
 | `swrepo:gef` | `g.sw.gef` | self-describing bundle format (metadata/icon/UI/VM segments) for satellite features (reusable) | [gef](gef/README.md) |
 
-The host-side modules live outside swrepo: [`star`](../star/README.md) and [`satellite/android`](../satellite/android/README.md).
+The host-side modules live outside swrepo: [`star`](../star/README.md), [`planet`](../planet/README.md) and [`satellite/android`](../satellite/android/README.md).
