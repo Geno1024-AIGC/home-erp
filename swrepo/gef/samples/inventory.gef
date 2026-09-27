@@ -48,6 +48,7 @@ J4CPV96iNgQB5e96jYq2uMnzZqr6fB54str5P297aECD+BA/AAAAAElFTkSuQmCC
     {
       "type": "list",
       "repeat": "items",
+      "action": "url:GET /api/inventory/items",
       "item": {
         "type": "row",
         "children": [

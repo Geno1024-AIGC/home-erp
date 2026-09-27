@@ -81,7 +81,7 @@ Node vocabulary:
 | `text` | `text?` **or** `bind?` | static text, or a bound value rendered as text |
 | `image` | `src` | `icon` = icon segment; `emoji:<hex>`; `asset:<key>` (future) |
 | `button` | `label`, `action?` | tappable action |
-| `list` | `repeat` (path), `item` (node) | renders `item` once per element of `repeat` |
+| `list` | `repeat` (path), `item` (node), `action?` (url form) | data source; renders `item` once per element of `repeat` |
 | `if` | `bind` (path), `then` (array of nodes) | children shown when bound value is truthy |
 | `field` | `bind`, `kind?` (`text\|number\|date`), `label?` | editable field (editing forms, v1 reserved) |
 
@@ -90,6 +90,12 @@ Node vocabulary:
 - At `page` level the context is the root data object.
 - Inside a `list` `item` subtree the context is the current element; bind paths
   are relative to it.
+
+A `list` node without an `action` renders against data already present in the
+page context; with an `action` its `url:<METHOD> <path>` (usually `GET`) is the
+data source — the satellite fetches it before rendering and reads the array
+under the `repeat` key from the response object. Multiple distinct `repeat`
+keys are fetched independently.
 
 **Actions** —
 

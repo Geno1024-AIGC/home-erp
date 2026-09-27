@@ -46,6 +46,7 @@ QmCC
     {
       "type": "list",
       "repeat": "members",
+      "action": "url:GET /api/members/family",
       "item": {
         "type": "row",
         "children": [

@@ -17,6 +17,7 @@ object GenSample {
             mapOf(
                 "type" to "list",
                 "repeat" to "items",
+                "action" to "url:GET /api/inventory/items",
                 "item" to mapOf(
                     "type" to "row",
                     "children" to listOf(
@@ -43,6 +44,7 @@ object GenSample {
             mapOf(
                 "type" to "list",
                 "repeat" to "members",
+                "action" to "url:GET /api/members/family",
                 "item" to mapOf(
                     "type" to "row",
                     "children" to listOf(
