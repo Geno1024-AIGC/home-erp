@@ -15,4 +15,5 @@ application {
 dependencies {
     implementation(project(":swrepo:spi"))
     implementation(project(":swrepo:relay"))
+    implementation(project(":swrepo:topology"))
 }

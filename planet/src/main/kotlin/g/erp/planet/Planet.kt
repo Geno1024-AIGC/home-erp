@@ -2,6 +2,7 @@ package g.erp.planet
 
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
+import g.sw.erp.topology.TopologyCache
 import g.sw.relay.RelayPool
 import g.sw.relay.RelayTimeoutException
 import g.sw.relay.UnknownStarException
@@ -23,22 +24,26 @@ object Planet {
 
     private const val DEFAULT_HTTP_PORT = 9090
     private const val DEFAULT_TUNNEL_PORT = 9091
+    private const val DEFAULT_REFRESH_MS = 30_000L
     private val ALIAS = Regex("[a-zA-Z0-9_-]{1,64}")
 
     @JvmStatic
     fun main(args: Array<String>) {
         val httpPort = portArg(args, "http") ?: DEFAULT_HTTP_PORT
         val tunnelPort = portArg(args, "tunnel") ?: DEFAULT_TUNNEL_PORT
+        val refreshMs = (portArg(args, "refresh")?.toLong() ?: DEFAULT_REFRESH_MS).coerceAtLeast(5_000L)
 
         val pool = RelayPool(ServerSocket(tunnelPort))
         pool.start()
+        val topologyCache = TopologyCache()
+        startTopologyPuller(pool, topologyCache, refreshMs)
         println("[planet] tunnel listening on $tunnelPort")
 
         val server = HttpServer.create(InetSocketAddress(httpPort), 0)
-        server.createContext("/") { exchange -> route(exchange, pool) }
+        server.createContext("/") { exchange -> route(exchange, pool, topologyCache) }
         server.start()
         println("[planet] http listening on $httpPort")
-        println("[planet] to serve a star: open its tunnel to this tunnel port, alias inside URL")
+        println("[planet] to serve a star: open its relay to this tunnel port, it appears under its alias")
     }
 
     private fun portArg(args: Array<String>, name: String): Int? =
@@ -46,12 +51,13 @@ object Planet {
             if (a.startsWith("--$name=")) a.substringAfter("=").toIntOrNull() else null
         }
 
-    private fun route(exchange: HttpExchange, pool: RelayPool) {
+    private fun route(exchange: HttpExchange, pool: RelayPool, topologyCache: TopologyCache) {
         val path = exchange.requestURI.path ?: "/"
         try {
             when {
                 path == "/" || path == "/planet" -> serveDiscovery(exchange, pool)
                 path == "/planet/stars" -> serveStars(exchange, pool)
+                path == "/planet/topology" -> serveTopology(exchange, topologyCache)
                 path.startsWith("/planet/") -> sendJson(exchange, 404, mapOf("error" to "no such endpoint '${path}'"))
                 else -> relay(exchange, pool, path)
             }
@@ -60,6 +66,46 @@ object Planet {
         } finally {
             exchange.close()
         }
+    }
+
+    /**
+     * Planets persist nothing: this loop periodically pulls each connected
+     * Star's topology over its relay tunnel and keeps only an in-memory cache.
+     */
+    private fun startTopologyPuller(pool: RelayPool, cache: TopologyCache, refreshMs: Long) {
+        Thread({
+            while (true) {
+                for (star in pool.stars()) {
+                    try {
+                        val response = pool.forward(
+                            star.alias, "GET", "/api/topology",
+                            emptyMap(), ByteArray(0),
+                            timeoutMs = minOf(refreshMs, 10_000L),
+                        )
+                        val json = runCatching {
+                            g.sw.spi.Json.parse(response.body.decodeToString()) as? Map<*, *>
+                        }.getOrNull()
+                        if (json != null) cache.update(star.alias, json.entries.associate { (k, v) -> k.toString() to v })
+                    } catch (_: Exception) {
+                        // tunnel or star momentarily unavailable; retry next round
+                    }
+                }
+                try {
+                    Thread.sleep(refreshMs)
+                } catch (e: InterruptedException) {
+                    return@Thread
+                }
+            }
+        }, "planet-topology").apply { isDaemon = true }.start()
+    }
+
+    private fun serveTopology(exchange: HttpExchange, cache: TopologyCache) {
+        val snapshot = cache.snapshot()
+        if (snapshot == null) {
+            sendJson(exchange, 503, mapOf("error" to "no star topology cached yet"))
+            return
+        }
+        sendJson(exchange, 200, snapshot)
     }
 
     private fun serveDiscovery(exchange: HttpExchange, pool: RelayPool) {
