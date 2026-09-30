@@ -27,6 +27,9 @@ object HtmlGef {
 
     private val ZIP_MAGIC = byteArrayOf(0x50, 0x4B, 0x03, 0x04)
 
+    /** 2000-01-01T00:00:00Z — keeps packed zips byte-reproducible (no build-time stamps). */
+    private const val FIXED_ENTRY_TIME = 946_684_800_000L
+
     data class Package(
         val id: String,
         val name: String,
@@ -144,7 +147,7 @@ object HtmlGef {
     }
 
     private fun writeEntry(zip: ZipOutputStream, name: String, data: ByteArray) {
-        zip.putNextEntry(ZipEntry(name))
+        zip.putNextEntry(ZipEntry(name).also { it.time = FIXED_ENTRY_TIME })
         zip.write(data)
         zip.closeEntry()
     }

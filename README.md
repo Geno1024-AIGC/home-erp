@@ -25,7 +25,7 @@ Each module documents itself in its own README.
 | `swrepo:chores` | `g.sw.erp.chores` | [chores](swrepo/chores/README.md) — housework & schedule |
 | `swrepo:db` | `g.sw.db` | [db](swrepo/db/README.md) — lightweight append-only-log database |
 | `swrepo:topology` | `g.sw.erp.topology` | [topology](swrepo/topology/README.md) — deployment-address book: Star persists it, Planets cache it, Satellites probe it |
-| `swrepo:gef` | `g.sw.gef` | [gef](swrepo/gef/README.md) — self-describing bundle format (metadata/icon/UI/VM segments) for satellite features |
+| `swrepo:gef` | `g.sw.gef` | [gef](swrepo/gef/README.md) — self-describing bundle formats for satellite features: v1 UI DSL text + v0.1 zip/HTML (WebView) containers |
 | `star` | `g.erp.star` | [star](star/README.md) — the Star application: assembles modules onto one JDK `HttpServer` |
 | `planet` | `g.erp.planet` | [planet](planet/README.md) — the Planet application: cloud discovery + HTTP relay to Stars |
 | `satellite:android` | `g.erp.satellite` | [satellite/android](satellite/android/README.md) — the Android satellite: side-drawer app browsing the Star's HTTP API (zero AndroidX, plain framework UI) |
