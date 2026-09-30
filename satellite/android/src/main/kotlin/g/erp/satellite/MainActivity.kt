@@ -22,6 +22,10 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
 import android.view.ViewGroup
+import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.Button
@@ -33,12 +37,17 @@ import android.widget.Spinner
 import android.widget.ScrollView
 import android.widget.TextView
 import android.window.OnBackInvokedDispatcher
+import g.erp.satellite.gef.ErpBridge
 import g.erp.satellite.gef.Gef
+import g.erp.satellite.gef.GefPackage
 import g.erp.satellite.gef.GefRenderer
 import g.erp.satellite.gef.GefStore
+import g.erp.satellite.gef.HtmlGef
+import g.erp.satellite.gef.NativeGef
 import g.erp.satellite.json.Json
 import g.erp.satellite.update.InstallReceiver
 import g.erp.satellite.update.Updater
+import java.io.ByteArrayInputStream
 import java.io.File
 import java.util.concurrent.Executors
 
@@ -58,7 +67,7 @@ class MainActivity : Activity() {
 
     private sealed class Nav {
         object Settings : Nav()
-        class Package(val bundle: Gef.Bundle) : Nav()
+        class Package(val pkg: GefPackage) : Nav()
     }
 
     private lateinit var current: Nav
@@ -171,6 +180,11 @@ class MainActivity : Activity() {
 
     private fun prefs() = getSharedPreferences("sat", Context.MODE_PRIVATE)
 
+    // Accessed from ErpBridge (single-thread [executor] serialises probe/data tasks).
+    internal fun currentToken(): String? = authToken
+    internal val currentBase: String get() = baseUrl
+    internal val worker get() = executor
+
     // ---------------------------------------------------------------- UI
 
     private fun buildUi() {
@@ -266,9 +280,9 @@ class MainActivity : Activity() {
                 setPadding(dp(24), dp(8), dp(24), dp(8))
             })
         } else {
-            for (bundle in installed) {
-                drawerItems.addView(drawerItem(bundle.name, Gef.iconBitmap(bundle)) {
-                    select(Nav.Package(bundle))
+            for (pkg in installed) {
+                drawerItems.addView(drawerItem(pkg.name, pkg.iconBitmap) {
+                    select(Nav.Package(pkg))
                     closeDrawer()
                 })
             }
@@ -414,16 +428,21 @@ class MainActivity : Activity() {
     private fun show(nav: Nav) {
         when (nav) {
             Nav.Settings -> showSettings()
-            is Nav.Package -> showPackage(nav.bundle)
+            is Nav.Package -> showPackage(nav.pkg)
         }
     }
 
-    private fun showPackage(bundle: Gef.Bundle, note: String? = null) {
-        current = Nav.Package(bundle)
+    private fun showPackage(pkg: GefPackage, note: String? = null) {
+        current = Nav.Package(pkg)
         if (savedUrls.isEmpty()) {
             showSetup()
             return
         }
+        if (pkg is HtmlGef) {
+            showHtmlPackage(pkg, note)
+            return
+        }
+        val bundle = (pkg as NativeGef).bundle
         titleView.text = runCatching { GefRenderer(this, bundle, emptyMap(), {}, {}).pageTitle() }.getOrNull() ?: bundle.name
         contentHost.removeViews(1, contentHost.childCount - 1)
         contentHost.addView(message("加载中…"))
@@ -431,7 +450,7 @@ class MainActivity : Activity() {
             val result = runCatching { fetchPageData(bundle) }
             runOnUiThread {
                 val nav = current
-                if (nav !is Nav.Package || nav.bundle.id != bundle.id) return@runOnUiThread
+                if (nav !is Nav.Package || nav.pkg.id != bundle.id) return@runOnUiThread
                 contentHost.removeViews(1, contentHost.childCount - 1)
                 result.fold(
                     onSuccess = { data -> renderPackage(bundle, data, note) },
@@ -448,6 +467,41 @@ class MainActivity : Activity() {
                 )
             }
         }
+    }
+
+    /**
+     * v0.1 GEF: python the entry HTML into a locked-down WebView. The page has
+     * no direct network access — every Star call goes through [ErpBridge].
+     */
+    private fun showHtmlPackage(pkg: HtmlGef, note: String?) {
+        titleView.text = pkg.name
+        contentHost.removeViews(1, contentHost.childCount - 1)
+        if (note != null) {
+            contentHost.addView(TextView(this).apply {
+                text = note
+                textSize = 13f
+                setTextColor(Color.parseColor("#B3261E"))
+                setPadding(dp(16), dp(8), dp(16), 0)
+            })
+        }
+        val web = WebView(this)
+        web.addJavascriptInterface(ErpBridge(this, web), "Erp")
+        web.settings.javaScriptEnabled = true
+        web.settings.domStorageEnabled = true
+        web.settings.allowFileAccess = true
+        web.settings.setAllowFileAccessFromFileURLs(false)
+        web.settings.setAllowUniversalAccessFromFileURLs(false)
+        web.webViewClient = object : WebViewClient() {
+            override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
+                val scheme = request.url?.scheme
+                if (scheme == "http" || scheme == "https" || scheme == "ws" || scheme == "wss") {
+                    return WebResourceResponse("text/plain", "utf-8", ByteArrayInputStream(ByteArray(0)))
+                }
+                return null
+            }
+        }
+        contentHost.addView(web, LinearLayout.LayoutParams(MATCH_PARENT, 0, 1f))
+        web.loadUrl("file://" + pkg.dir.absolutePath + "/" + pkg.entry)
     }
 
     private fun fetchPageData(bundle: Gef.Bundle): Map<String, Any?> {
@@ -491,7 +545,7 @@ class MainActivity : Activity() {
         }
         val renderer = GefRenderer(
             this, bundle, data,
-            onRefresh = { showPackage(bundle) },
+            onRefresh = { showPackage(NativeGef(bundle)) },
             onPost = { path -> postPackage(bundle, path) },
         )
         renderer.build(col)
@@ -506,7 +560,7 @@ class MainActivity : Activity() {
             val result = runCatching { StarClient.post(baseUrl, path, "{}", authToken) }
             runOnUiThread {
                 val nav = current
-                if (nav !is Nav.Package || nav.bundle.id != bundle.id) return@runOnUiThread
+                if (nav !is Nav.Package || nav.pkg.id != bundle.id) return@runOnUiThread
                 if (result.isFailure && result.exceptionOrNull() is ApiException &&
                     (result.exceptionOrNull() as ApiException).code == 401
                 ) {
@@ -516,7 +570,7 @@ class MainActivity : Activity() {
                     needLoginBox()
                     return@runOnUiThread
                 }
-                showPackage(bundle, result.fold(
+                showPackage(NativeGef(bundle), result.fold(
                     onSuccess = { null },
                     onFailure = { "操作失败：${it.message ?: "未知错误"}" },
                 ))
@@ -538,7 +592,7 @@ class MainActivity : Activity() {
         })
         box.addView(Button(this).apply {
             text = "重试"
-            setOnClickListener { showPackage(bundle) }
+            setOnClickListener { showPackage(NativeGef(bundle)) }
         })
         contentHost.addView(box, LinearLayout.LayoutParams(MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
     }
@@ -784,13 +838,13 @@ class MainActivity : Activity() {
                 setPadding(0, dp(2), 0, dp(2))
             })
         }
-        for (bundle in installed) {
+        for (pkg in installed) {
             val row = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
                 setPadding(0, dp(4), 0, dp(4))
             }
-            val icon = Gef.iconBitmap(bundle)
+            val icon = pkg.iconBitmap
             row.addView(ImageView(this).apply {
                 if (icon != null) setImageBitmap(icon)
                 layoutParams = LinearLayout.LayoutParams(dp(28), dp(28))
@@ -798,11 +852,11 @@ class MainActivity : Activity() {
             row.addView(LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 addView(TextView(this@MainActivity).apply {
-                    text = bundle.name
+                    text = pkg.name
                     textSize = 15f
                 })
                 addView(TextView(this@MainActivity).apply {
-                    text = bundle.id + (bundle.version?.let { "  v$it" } ?: "")
+                    text = pkg.id + (pkg.version?.let { "  v$it" } ?: "")
                     textSize = 12f
                     setTextColor(Color.GRAY)
                 })
@@ -811,7 +865,7 @@ class MainActivity : Activity() {
             })
             row.addView(Button(this).apply {
                 text = "卸载"
-                setOnClickListener { confirmUninstall(bundle) }
+                setOnClickListener { confirmUninstall(pkg) }
             })
             col.addView(row)
         }
@@ -841,13 +895,13 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun confirmUninstall(bundle: Gef.Bundle) {
+    private fun confirmUninstall(pkg: GefPackage) {
         AlertDialog.Builder(this)
             .setTitle("卸载功能包")
-            .setMessage("确定卸载「${bundle.name}」（${bundle.id}）？")
+            .setMessage("确定卸载「${pkg.name}」（${pkg.id}）？")
             .setPositiveButton("卸载") { _, _ ->
-                store.uninstall(bundle.id)
-                repoFlash = "已卸载「${bundle.name}」"
+                store.uninstall(pkg.id)
+                repoFlash = "已卸载「${pkg.name}」"
                 showSettings()
             }
             .setNegativeButton("取消", null)
