@@ -39,6 +39,8 @@ object Updater {
         override fun toString(): String = "0.1.$pack.$build"
     }
 
+    class GefAsset(val name: String, val size: Long)
+
     class Release(
         val tag: String,
         val name: String,
@@ -47,6 +49,7 @@ object Updater {
         val version: Version?,
         val apkName: String?,
         val apkSize: Long,
+        val gefAssets: List<GefAsset>,
     )
 
     fun parseVersion(s: String): Version? {
@@ -65,6 +68,9 @@ object Updater {
 
     fun downloadUrl(source: Source, release: Release): String =
         "${source.downloadPrefix}/$OWNER/$REPO/releases/download/${release.tag}/${release.apkName}"
+
+    fun gefDownloadUrl(source: Source, release: Release, assetName: String): String =
+        "${source.downloadPrefix}/$OWNER/$REPO/releases/download/${release.tag}/$assetName"
 
     fun download(url: String, target: File, onProgress: (Long, Long) -> Unit) {
         val conn = URL(url).openConnection() as HttpURLConnection
@@ -97,8 +103,11 @@ object Updater {
     private fun toRelease(map: Map<*, *>): Release? {
         val tag = map["tag_name"] as? String ?: return null
         val assets = map["assets"] as? List<*> ?: emptyList<Any?>()
-        val apk = assets.mapNotNull { it as? Map<*, *> }
-            .firstOrNull { (it["name"] as? String)?.endsWith(".apk", ignoreCase = true) == true }
+        val assetMaps = assets.mapNotNull { it as? Map<*, *> }
+        val apk = assetMaps.firstOrNull { (it["name"] as? String)?.endsWith(".apk", ignoreCase = true) == true }
+        val gefs = assetMaps
+            .filter { (it["name"] as? String)?.endsWith(".gef", ignoreCase = true) == true }
+            .map { GefAsset((it["name"] as? String) ?: "", ((it["size"] as? Double) ?: 0.0).toLong()) }
         return Release(
             tag = tag,
             name = map["name"] as? String ?: tag,
@@ -107,6 +116,7 @@ object Updater {
             version = parseVersion(tag),
             apkName = apk?.get("name") as? String,
             apkSize = ((apk?.get("size") as? Double) ?: 0.0).toLong(),
+            gefAssets = gefs,
         )
     }
 
