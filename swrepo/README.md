@@ -17,6 +17,6 @@ Part of [Home ERP](../README.md).
 | `swrepo:chores` | `g.sw.erp.chores` | housework & schedule | [chores](chores/README.md) |
 | `swrepo:db` | `g.sw.db` | append-only-log database (reusable) | [db](db/README.md) |
 | `swrepo:topology` | `g.sw.erp.topology` | deployment address book: Star-authoritative addresses, Planet in-memory cache | [topology](topology/README.md) |
-| `swrepo:gef` | `g.sw.gef` | self-describing bundle format (metadata/icon/UI/VM segments) for satellite features (reusable) | [gef](gef/README.md) |
+| `swrepo:gef` | `g.sw.gef` | self-describing bundle formats for satellite features: v1 UI DSL text + v0.1 zip/HTML (reusable) | [gef](gef/README.md) |
 
 The host-side modules live outside swrepo: [`star`](../star/README.md), [`planet`](../planet/README.md) and [`satellite/android`](../satellite/android/README.md).

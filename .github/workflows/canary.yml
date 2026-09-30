@@ -33,7 +33,7 @@ jobs:
         run: echo "CANARY_PACK=$(cat satellite/android/count.pack 2>/dev/null || echo 0)" >> "$GITHUB_ENV"
 
       - name: Build everything
-        run: ./gradlew build :star:distZip :planet:distZip :swrepo:db:smoke :swrepo:relay:smoke :swrepo:topology:smoke :swrepo:gef:generateSamples --stacktrace
+        run: ./gradlew build :star:distZip :planet:distZip :swrepo:db:smoke :swrepo:relay:smoke :swrepo:topology:smoke :swrepo:gef:smoke --stacktrace
 
       - name: Publish canary pre-release (keep only the latest)
         env:
@@ -41,12 +41,10 @@ jobs:
         run: |
           VERSION="0.1.$GITHUB_RUN_NUMBER.$CANARY_PACK.$(git rev-parse --short=8 HEAD)"
           echo "canary version = $VERSION"
-          mkdir -p gefs
-          cp swrepo/gef/samples/*.gef gefs/
           gh release list --json tagName,isPrerelease --limit 100 --jq '.[] | select(.isPrerelease) | .tagName' > /tmp/old-tags.txt || true
           while read -r t; do
             [ -n "$t" ] && gh release delete "$t" --yes --cleanup-tag || true
           done < /tmp/old-tags.txt
           gh release create "v$VERSION" --prerelease --title "Canary v$VERSION" \
-            --notes "Automated Canary build from commit \`$(git rev-parse --short=8 HEAD)\` — Star + Planet distros, APK + GEF packages." \
-            star/build/distributions/*.zip planet/build/distributions/*.zip satellite/android/build/outputs/apk/debug/*.apk satellite/android/build/outputs/apk/release/*.apk gefs/*.gef
+            --notes "Automated Canary build from commit \`$(git rev-parse --short=8 HEAD)\` — Star + Planet distros and APK." \
+            star/build/distributions/*.zip planet/build/distributions/*.zip satellite/android/build/outputs/apk/debug/*.apk satellite/android/build/outputs/apk/release/*.apk

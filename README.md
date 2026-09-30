@@ -45,7 +45,6 @@ Requires **JDK 25** (sourced from `~/.jdks` via `gradle.properties`); Gradle wra
 ./gradlew :swrepo:relay:smoke  # run the Planet↔Star tunnel round-trip self-test
 ./gradlew :swrepo:topology:smoke  # run the topology address-book self-test
 ./gradlew :swrepo:gef:smoke  # run the GEF bundle format round-trip self-test
-./gradlew :swrepo:gef:generateSamples  # rebuild the samples/*.gef from GenSample
 ./gradlew :satellite:android:assembleDebug  # build the Android satellite APK
 ```
 

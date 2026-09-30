@@ -28,27 +28,27 @@ sniffed apart by their leading bytes:
   entry file, referenced icon file, `id` as a single path segment, 4 MB
   uncompressed / 256 entries caps.
 
-## Sections
+## Format & docs
 
 - [FORMAT.md](FORMAT.md) — the normative container + UI DSL spec (v1).
-- [samples/inventory.gef](samples/inventory.gef) — household inventory: metadata + embedded icon + a `page`/`list`/`text`/`button` UI tree with `url:` actions.
-- [samples/members.gef](samples/members.gef) — family members: metadata + embedded icon + a `list` of members bound to `GET /api/members/family`, refresh/add actions.
-- [samples/html-demo.gef](samples/html-demo.gef) — the v0.1 zip demo: a self-contained `index.html` (inventory table + member list) that calls the Star through the `Erp` bridge.
-
-The samples under `samples/` are **build output, not hand-written**: `GenSample`
-composes the v1 bundles in Kotlin (UI DSL as data, icons from
-`src/main/resources/icons/`) and the zip demo with `HtmlGef.pack`. Running
-`./gradlew :swrepo:gef:generateSamples` reproduces them byte-for-byte.
 
 ```kotlin
-val bundle = Gef.parse(Files.readString(Path.of("inventory.gef")))
-bundle.name              // "库存" — feature-list title
+// v1 text: parse a bundle fetched from anywhere (file, HTTP, asset, ...)
+val bundle = Gef.parse(text)
+bundle.name              // feature-list title
 bundle.icon              // ByteArray? — feature-list icon
 Gef.uiJson(bundle)       // UI DSL tree for the renderer
 
-val pkg = HtmlGef.unpack(Files.readAllBytes(Path.of("html-demo.gef")))
-pkg.entry                // "index.html" — WebView loadUrl target relative to the unzipped dir
+// v0.1 zip: pack an HTML app, then load the unpacked dir in a WebView
+val packed = HtmlGef.pack(
+    id = "g.erp.satellite.demo", name = "HTML 演示", version = "0.1",
+    entry = "index.html", icon = "icon",
+    files = mapOf("index.html" to html, "app.js" to js, "icon" to png),
+)
+val pkg = HtmlGef.unpack(packed)
+pkg.entry                // "index.html" — WebView loadUrl target relative to the unpacked dir
 HtmlGef.isZip(bytes)     // sniff any file: zip → html renderer, else v1 text renderer
 ```
 
-Smoke round-trip + failure cases: `./gradlew :swrepo:gef:smoke`.
+Self-tests (inline fixtures + failure cases, no checked-in binaries):
+`./gradlew :swrepo:gef:smoke`.

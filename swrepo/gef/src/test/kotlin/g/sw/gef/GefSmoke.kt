@@ -1,42 +1,26 @@
 package g.sw.gef
 
-import java.nio.file.Files
-import java.nio.file.Path
-import java.nio.file.Paths
-
 object GefSmoke {
 
     @JvmStatic
     fun main(args: Array<String>) {
-        val samplesDir = resolveSamplesDir()
-        val samples = Files.list(samplesDir).use { stream ->
-            stream.filter { it.toString().endsWith(".gef") }.toList().sorted()
-        }
-        check(samples.isNotEmpty()) { "no *.gef samples found in $samplesDir" }
+        val bundle = Gef.Bundle(
+            id = "g.sw.erp.smoke",
+            name = "冒烟",
+            version = "0.1",
+            summary = "self-test fixture",
+            meta = mapOf("platforms" to "android,web"),
+            icon = byteArrayOf(1, 2, 3),
+            ui = """{"type":"page","title":"冒烟","children":[]}""",
+        )
+        val parsed = Gef.parse(Gef.write(bundle))
+        check(parsed == bundle) { "round-trip mismatch" }
+        check(Gef.write(parsed) == Gef.write(bundle)) { "write not stable" }
+        check(parsed.id == "g.sw.erp.smoke") { "id mismatch" }
+        check(parsed.meta == mapOf("platforms" to "android,web")) { "meta mismatch" }
+        check(Gef.uiJson(parsed) is Map<*, *>) { "ui must parse as json object" }
 
-        for (sample in samples) {
-            val bytes = Files.readAllBytes(sample)
-            check(bytes.isNotEmpty()) { "empty sample: $sample" }
-            if (HtmlGef.isZip(bytes)) {
-                validateHtml(sample, HtmlGef.unpack(bytes))
-            } else {
-                validate(sample)
-            }
-        }
-
-        val inventory = Gef.parse(Files.readString(
-            samples.first { it.fileName.toString() == "inventory.gef" }))
-        check(inventory.name == "库存") { "name mismatch: ${inventory.name}" }
-        check(inventory.id == "g.sw.erp.inventory") { "id mismatch: ${inventory.id}" }
-        check(inventory.meta == mapOf("platforms" to "android,web")) { "extra meta mismatch" }
-
-        val members = Gef.parse(Files.readString(
-            samples.first { it.fileName.toString() == "members.gef" }))
-        check(members.name == "成员") { "name mismatch: ${members.name}" }
-        check(members.id == "g.sw.erp.members") { "id mismatch: ${members.id}" }
-        check(members.icon != null && members.icon.size > 0) { "icon missing" }
-
-        val withVm = inventory.copy(vms = mapOf("gefvm" to byteArrayOf(0, 1, 2, 3, -1, 42)))
+        val withVm = bundle.copy(vms = mapOf("gefvm" to byteArrayOf(0, 1, 2, 3, -1, 42)))
         val fmt = Gef.write(withVm)
         check(fmt.contains("==== vm:gefvm ===")) { "vm segment not framed" }
         check(Gef.parse(fmt) == withVm) { "vm round-trip mismatch" }
@@ -52,23 +36,35 @@ object GefSmoke {
         expectThrows { Gef.parse("gef 1.0\nid: x\nname: n\n==== ui ====\n{}\n==== icon ====\n") }
         expectThrows { Gef.parse("gef 1.0\nid: x\nname: n\n==== vm: ====\n" + "==== ui ====\n{}") }
 
+        htmlRoundTrip()
         htmlHostileTests()
 
-        println("[gef] smoke ok: ${samples.size} samples validated")
+        println("[gef] smoke ok")
     }
 
-    private fun validateHtml(sample: Path, pkg: HtmlGef.Package) {
-        check(pkg.id.isNotBlank()) { "blank id in $sample" }
-        check(pkg.name.isNotBlank()) { "blank name in $sample" }
-        check(pkg.files.containsKey(pkg.entry)) { "entry file missing from assets: $sample" }
-        pkg.icon?.let { check(pkg.files.containsKey(it)) { "icon file missing from assets: $sample" } }
-        check(pkg.files.values.all { it.isNotEmpty() }) { "empty asset in $sample" }
-
-        val roundTrip = HtmlGef.unpack(HtmlGef.pack(
+    private fun htmlRoundTrip() {
+        val pkg = HtmlGef.Package(
+            id = "g.sw.erp.smoke-html",
+            name = "HTML 冒烟",
+            version = "0.1",
+            entry = "index.html",
+            icon = "icon",
+            files = mapOf(
+                "index.html" to "<!doctype html><html><body>ok</body></html>".toByteArray(),
+                "icon" to byteArrayOf(1, 2, 3),
+            ),
+        )
+        val packed = HtmlGef.pack(
             id = pkg.id, name = pkg.name, version = pkg.version, summary = pkg.summary,
             entry = pkg.entry, icon = pkg.icon, files = pkg.files,
-        ))
-        check(roundTrip == pkg) { "html round-trip mismatch: $sample" }
+        )
+        check(HtmlGef.isZip(packed)) { "packed bytes must be a zip" }
+        check(HtmlGef.unpack(packed) == pkg) { "html round-trip mismatch" }
+        val repacked = HtmlGef.pack(
+            id = pkg.id, name = pkg.name, version = pkg.version, summary = pkg.summary,
+            entry = pkg.entry, icon = pkg.icon, files = pkg.files,
+        )
+        check(packed.contentEquals(repacked)) { "packed bytes not stable" }
     }
 
     private fun htmlHostileTests() {
@@ -104,30 +100,6 @@ object GefSmoke {
             }
         }
         return out.toByteArray()
-    }
-
-    private fun validate(sample: Path) {
-        val parsed = Gef.parse(Files.readString(sample))
-        check(parsed.id.isNotBlank()) { "blank id in $sample" }
-        check(parsed.name.isNotBlank()) { "blank name in $sample" }
-        if (parsed.icon != null) check(parsed.icon.size > 0) { "empty icon in $sample" }
-        check(parsed.ui.contains("\"type\": \"page\"")) { "ui must be a page: $sample" }
-        check(Gef.uiJson(parsed) is Map<*, *>) { "ui must parse as json object: $sample" }
-        check(parsed.vms.isEmpty()) { "sample must not carry vm segments: $sample" }
-
-        val roundTrip = Gef.parse(Gef.write(parsed))
-        check(roundTrip == parsed) { "round-trip mismatch: $sample" }
-        check(Gef.write(roundTrip) == Gef.write(parsed)) { "write not stable: $sample" }
-    }
-
-    private fun resolveSamplesDir(): Path {
-        val candidates = listOf(
-            Paths.get("samples"),
-            Paths.get("swrepo/gef/samples"),
-            Paths.get(".").toAbsolutePath().resolve("samples"),
-        )
-        return candidates.firstOrNull { Files.isDirectory(it) }
-            ?: error("samples dir not found, tried: $candidates")
     }
 
     private fun expectThrows(block: () -> Any?) {

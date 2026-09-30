@@ -122,5 +122,5 @@ fixed now so the format never needs to change to add engines.
 - The bundle is a plain UTF-8 text file; `String`-based frameworks on both JVM
   and browser handle it unchanged.
 
-Reference implementation + round-trip smoke: `g.sw.gef.Gef` and the
-`samples/inventory.gef` example in this module.
+Reference implementation + round-trip self-test: `g.sw.gef.Gef` and
+`GefSmoke` (inline fixtures, `./gradlew :swrepo:gef:smoke`).
