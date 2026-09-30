@@ -25,6 +25,8 @@
 | `swrepo:db` | `g.sw.db` | [db](swrepo/db/README.md) — 精简的追加式日志数据库 |
 | `swrepo:gef` | `g.sw.gef` | [gef](swrepo/gef/README.md) — 卫星功能的自描述 bundle 格式（v1 UI DSL 文本 + v0.1 zip/HTML WebView 容器） |
 | `star` | `g.erp.star` | [star](star/README.md) — 恒星应用：把各模块组装到单个 JDK `HttpServer` 上 |
+| `planet` | `g.erp.planet` | [planet](planet/README.md) — 行星应用：云端发现 + 到恒星的 HTTP 中继 |
+| `gefs` | `g.erp.gefs` | [gefs](gefs/README.md) — 打包卫星功能包（每个功能一个 HTML GEF），随每次 canary 发布分发 |
 | `satellite:android` | `g.erp.satellite` | [satellite/android](satellite/android/README.md) — Android 卫星：侧滑抽屉应用，浏览恒星的 HTTP API（零 AndroidX、纯框架 UI） |
 
 软件仓库布局见 [swrepo/README.md](swrepo/README.md)。
@@ -38,15 +40,17 @@
 ./gradlew run       # 启动恒星，监听 http://localhost:8080
 ./gradlew :swrepo:db:smoke   # 运行数据库自测
 ./gradlew :swrepo:gef:smoke  # 运行 GEF bundle 格式往返自测
+./gradlew :gefs:pack  # 重新生成卫星 HTML GEF 功能包到 gefs/build/gefs
 ./gradlew :satellite:android:assembleDebug  # 构建 Android 卫星 APK
 ```
 
 ## 卫星发布与更新
 
-CI（`.github/workflows/canary.yml`）在每次 push 到 `master` 时全量构建（也支持 `workflow_dispatch`），并发布一个 GitHub **pre-release**（Canary）,附带恒星 dist zip 与 debug/release APK。pre-release 只保留一个——每次运行都会先删掉旧的。
+CI（`.github/workflows/canary.yml`）在每次 push 到 `master` 时全量构建（也支持 `workflow_dispatch`），并发布一个 GitHub **pre-release**（Canary），附带恒星 dist zip、debug/release APK 以及生成的 GEF 功能包（`gefs/build/gefs/*.gef`）。pre-release 只保留一个——每次运行都会先删掉旧的。
 
 - 两个 APK 都用仓库内置的共享 debug keystore `satellite/android/signing/debug.jks`（标准 `androiddebugkey`、密码 `android`）签名，因此每次 CI 运行签名一致，Canary 更新可直接覆盖安装，无需任何 GitHub secret。将来正式版可换成 secret 签名密钥而不改动流水线。
 - App 内 **设置 → 更新**：选 更新渠道（**Canary** = pre-release，**正式版** = 正式 release——目前还没有发布过）与 更新源（GitHub 或镜像前缀 ghproxy / gh-proxy / ghfast.top），再 检查更新 与 下载并安装。
+- App 内 **设置 → 软件仓库** 可用 GEF 功能包加功能：**从发布同步功能包…** 经所选 更新源 下载 canary 中的 GEF 功能包，安装比已装更新的版本，并逐项报告 更新/已是最新/失败。
 - 更新元数据统一读 `api.github.com`，APK 经所选镜像前缀下载；缓存的 APK 用框架自带的 `PackageInstaller` 会话 API 安装，结果经 manifest 中的 `BroadcastReceiver` 以系统通知呈现（零 AndroidX）。详见 [satellite/android/README.md](satellite/android/README.md)。
 
 ## 版本号
