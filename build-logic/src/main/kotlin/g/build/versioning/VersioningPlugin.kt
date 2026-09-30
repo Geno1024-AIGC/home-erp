@@ -80,6 +80,7 @@ class VersioningPlugin : Plugin<Project> {
         private val PACKAGING_TASKS = setOf(
             "jar", "assemble", "build", "installDist", "distTar", "distZip",
             "assembleDebug", "assembleRelease", "bundleDebug", "bundleRelease",
+            "pack",
         )
     }
 }
