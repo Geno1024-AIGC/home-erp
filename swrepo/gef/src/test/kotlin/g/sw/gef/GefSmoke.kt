@@ -15,7 +15,13 @@ object GefSmoke {
         check(samples.isNotEmpty()) { "no *.gef samples found in $samplesDir" }
 
         for (sample in samples) {
-            validate(sample)
+            val bytes = Files.readAllBytes(sample)
+            check(bytes.isNotEmpty()) { "empty sample: $sample" }
+            if (HtmlGef.isZip(bytes)) {
+                validateHtml(sample, HtmlGef.unpack(bytes))
+            } else {
+                validate(sample)
+            }
         }
 
         val inventory = Gef.parse(Files.readString(
@@ -44,9 +50,59 @@ object GefSmoke {
         expectThrows { Gef.parse("gef 1.0\nid: x\nname: n\n==== what ====\n") }
         expectThrows { Gef.parse("gef 1.0\nid: x\nname: n\n==== icon ====\n\n==== ui ====\n{}") }
         expectThrows { Gef.parse("gef 1.0\nid: x\nname: n\n==== ui ====\n{}\n==== icon ====\n") }
-        expectThrows { Gef.parse("gef 1.0\nid: x\nname: n\n==== vm: ====\n") }
+        expectThrows { Gef.parse("gef 1.0\nid: x\nname: n\n==== vm: ====\n" + "==== ui ====\n{}") }
+
+        htmlHostileTests()
 
         println("[gef] smoke ok: ${samples.size} samples validated")
+    }
+
+    private fun validateHtml(sample: Path, pkg: HtmlGef.Package) {
+        check(pkg.id.isNotBlank()) { "blank id in $sample" }
+        check(pkg.name.isNotBlank()) { "blank name in $sample" }
+        check(pkg.files.containsKey(pkg.entry)) { "entry file missing from assets: $sample" }
+        pkg.icon?.let { check(pkg.files.containsKey(it)) { "icon file missing from assets: $sample" } }
+        check(pkg.files.values.all { it.isNotEmpty() }) { "empty asset in $sample" }
+
+        val roundTrip = HtmlGef.unpack(HtmlGef.pack(
+            id = pkg.id, name = pkg.name, version = pkg.version, summary = pkg.summary,
+            entry = pkg.entry, icon = pkg.icon, files = pkg.files,
+        ))
+        check(roundTrip == pkg) { "html round-trip mismatch: $sample" }
+    }
+
+    private fun htmlHostileTests() {
+        val manifest = """{"id":"x","name":"n","type":"html"}""".toByteArray()
+
+        expectThrows { HtmlGef.unpack("definitely not a zip".toByteArray()) }
+        expectThrows { HtmlGef.unpack(emptyZip()) }
+        expectThrows { HtmlGef.unpack(zip("manifest.json" to manifest)) }
+        expectThrows { HtmlGef.unpack(zip("manifest.json" to """{"name":"n"}""".toByteArray(), "index.html" to byteArrayOf())) }
+        expectThrows { HtmlGef.unpack(zip("manifest.json" to """{"id":"x","name":"n","type":"nope"}""".toByteArray(), "index.html" to byteArrayOf())) }
+        expectThrows { HtmlGef.unpack(zip("manifest.json" to """{"id":"x","name":"n","entry":"missing.html"}""".toByteArray(), "index.html" to byteArrayOf())) }
+        expectThrows { HtmlGef.unpack(zip("manifest.json" to """{"id":"x","name":"n","icon":"i.png"}""".toByteArray(), "index.html" to byteArrayOf())) }
+        expectThrows { HtmlGef.unpack(zip("manifest.json" to """abc""".toByteArray(), "index.html" to byteArrayOf())) }
+        expectThrows { HtmlGef.unpack(zip("manifest.json" to manifest, "../evil" to byteArrayOf(1))) }
+        expectThrows { HtmlGef.unpack(zip("manifest.json" to manifest, "a/b/../c" to byteArrayOf(1))) }
+        expectThrows { HtmlGef.unpack(zip("manifest.json" to manifest, "BIG" to ByteArray(HtmlGef.MAX_TOTAL_BYTES))) }
+    }
+
+    private fun emptyZip(): ByteArray {
+        val out = java.io.ByteArrayOutputStream()
+        java.util.zip.ZipOutputStream(out).use { }
+        return out.toByteArray()
+    }
+
+    private fun zip(vararg entries: Pair<String, ByteArray>): ByteArray {
+        val out = java.io.ByteArrayOutputStream()
+        java.util.zip.ZipOutputStream(out).use { zip ->
+            for ((name, bytes) in entries) {
+                zip.putNextEntry(java.util.zip.ZipEntry(name))
+                zip.write(bytes)
+                zip.closeEntry()
+            }
+        }
+        return out.toByteArray()
     }
 
     private fun validate(sample: Path) {
