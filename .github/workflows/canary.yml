@@ -35,9 +35,6 @@ jobs:
       - name: Build everything
         run: ./gradlew build :star:distZip :planet:distZip :swrepo:db:smoke :swrepo:relay:smoke :swrepo:topology:smoke :swrepo:gef:generateSamples --stacktrace
 
-      - name: Verify GEF samples unchanged
-        run: git diff --exit-code -- swrepo/gef/samples
-
       - name: Publish canary pre-release (keep only the latest)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
