@@ -15,6 +15,8 @@ class GefStore(context: Context) {
     private val dir = File(context.filesDir, "gefs")
     private val maxBytes = 2 * 1024 * 1024
 
+    class Probe(val id: String, val name: String, val version: String?)
+
     fun list(): List<GefPackage> {
         if (!dir.isDirectory) return emptyList()
         val native = dir.listFiles()
@@ -33,6 +35,18 @@ class GefStore(context: Context) {
         if (bytes.size > maxBytes) throw IllegalArgumentException("文件过大（超过 2MB）")
         return if (HtmlGefParser.isZip(bytes)) installHtml(bytes) else installNative(bytes)
     }
+
+    /** Reads id/name/version from a .gef without installing it. */
+    fun probe(bytes: ByteArray): Probe =
+        if (HtmlGefParser.isZip(bytes)) {
+            val pkg = HtmlGefParser.unpack(bytes) ?: throw IllegalArgumentException("不是有效的 HTML GEF 包")
+            Probe(pkg.id, pkg.name, pkg.version)
+        } else {
+            val bundle = Gef.parse(bytes.decodeToString()) ?: throw IllegalArgumentException("不是有效的 GEF 文件")
+            Probe(bundle.id, bundle.name, bundle.version)
+        }
+
+    fun versionOf(id: String): String? = list().firstOrNull { it.id == id }?.version
 
     private fun installNative(bytes: ByteArray): String {
         val bundle = Gef.parse(bytes.decodeToString()) ?: throw IllegalArgumentException("不是有效的 GEF 文件")
