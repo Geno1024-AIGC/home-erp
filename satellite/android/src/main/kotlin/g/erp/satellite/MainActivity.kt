@@ -44,6 +44,7 @@ import g.erp.satellite.gef.GefRenderer
 import g.erp.satellite.gef.GefStore
 import g.erp.satellite.gef.HtmlGef
 import g.erp.satellite.gef.NativeGef
+import g.erp.satellite.gef.RepoSync
 import g.erp.satellite.json.Json
 import g.erp.satellite.update.InstallReceiver
 import g.erp.satellite.update.Updater
@@ -83,6 +84,8 @@ class MainActivity : Activity() {
 
     private val store by lazy { GefStore(this) }
     private var repoFlash: String? = null
+
+    private var repoSyncStatus: String? = null
     private val pickGefRequest = 42
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -873,6 +876,18 @@ class MainActivity : Activity() {
             text = "安装功能包…"
             setOnClickListener { pickGef() }
         })
+        col.addView(Button(this).apply {
+            text = "从发布同步功能包…"
+            setOnClickListener { syncGefFromRelease() }
+        })
+        repoSyncStatus?.let { status ->
+            col.addView(TextView(this).apply {
+                text = status
+                textSize = 13f
+                setTextColor(if (status.startsWith("同步失败")) Color.parseColor("#E53935") else Color.parseColor("#4CAF50"))
+                setPadding(0, dp(6), 0, dp(4))
+            })
+        }
         repoFlash?.let { flash ->
             col.addView(TextView(this).apply {
                 text = flash
@@ -892,6 +907,37 @@ class MainActivity : Activity() {
         runCatching { startActivityForResult(intent, pickGefRequest) }.onFailure {
             repoFlash = "无法打开文件选择器：${it.message ?: "未知错误"}"
             showSettings()
+        }
+    }
+
+    private fun syncGefFromRelease() {
+        val channel = selectedChannel
+        val source = selectedSource
+        repoSyncStatus = "正在连接 GitHub 获取发布信息…"
+        showSettings()
+        executor.execute {
+            val result = runCatching {
+                RepoSync.sync(store, cacheDir, channel, source) { line ->
+                    runOnUiThread {
+                        repoSyncStatus = line
+                        showSettings()
+                    }
+                }
+            }
+            runOnUiThread {
+                repoSyncStatus = result.fold(
+                    onSuccess = { o ->
+                        buildString {
+                            append("同步完成。")
+                            if (o.installed) append("更新 ${o.applied.size} 个：${o.applied.joinToString("、")}")
+                            if (o.skipped.isNotEmpty()) append("\n已是最新 ${o.skipped.size} 个：${o.skipped.joinToString("、")}")
+                            if (o.failed) append("\n失败 ${o.errors.size} 个：${o.errors.joinToString("；")}")
+                        }
+                    },
+                    onFailure = { "同步失败：${it.message ?: "未知错误"}" },
+                )
+                showSettings()
+            }
         }
     }
 
