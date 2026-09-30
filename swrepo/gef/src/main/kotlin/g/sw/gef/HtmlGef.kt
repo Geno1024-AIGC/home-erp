@@ -124,6 +124,7 @@ object HtmlGef {
         } ?: throw IllegalArgumentException("missing $MANIFEST")
         val id = (manifest["id"] as? String)?.takeIf { it.isNotBlank() }
             ?: throw IllegalArgumentException("manifest 'id' missing or blank")
+        if (id.contains('/') || id.contains('\\')) throw IllegalArgumentException("manifest 'id' must be a single path segment")
         val name = (manifest["name"] as? String)?.takeIf { it.isNotBlank() }
             ?: throw IllegalArgumentException("manifest 'name' missing or blank")
         val type = manifest["type"] as? String

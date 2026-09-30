@@ -83,7 +83,8 @@ object GefSmoke {
         expectThrows { HtmlGef.unpack(zip("manifest.json" to """{"id":"x","name":"n","icon":"i.png"}""".toByteArray(), "index.html" to byteArrayOf())) }
         expectThrows { HtmlGef.unpack(zip("manifest.json" to """abc""".toByteArray(), "index.html" to byteArrayOf())) }
         expectThrows { HtmlGef.unpack(zip("manifest.json" to manifest, "../evil" to byteArrayOf(1))) }
-        expectThrows { HtmlGef.unpack(zip("manifest.json" to manifest, "a/b/../c" to byteArrayOf(1))) }
+        expectThrows { HtmlGef.unpack(zip("manifest.json" to manifest, "index.html" to byteArrayOf(), "x/../y" to byteArrayOf(1))) }
+        expectThrows { HtmlGef.unpack(zip("manifest.json" to """{"id":"x/y","name":"n"}""".toByteArray(), "index.html" to byteArrayOf())) }
         expectThrows { HtmlGef.unpack(zip("manifest.json" to manifest, "BIG" to ByteArray(HtmlGef.MAX_TOTAL_BYTES))) }
     }
 
