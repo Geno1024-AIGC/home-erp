@@ -38,6 +38,9 @@ class PackageOrder(context: Context) {
         return moved
     }
 
+    /** Persists an explicit id order (e.g. after a drag in the drawer). */
+    fun reorder(ids: List<String>) = save(ids)
+
     private fun save(ids: List<String>) {
         prefs.edit().putString(KEY, ids.joinToString("\n")).apply()
     }

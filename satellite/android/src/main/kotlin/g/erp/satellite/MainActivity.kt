@@ -5,6 +5,7 @@ import android.annotation.SuppressLint
 import android.app.AlertDialog
 import android.app.PendingIntent
 import android.content.ContentValues
+import android.content.ClipData
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageInstaller
@@ -17,6 +18,7 @@ import android.os.Bundle
 import android.os.Environment
 import android.provider.MediaStore
 import android.provider.Settings
+import android.view.DragEvent
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
@@ -89,6 +91,23 @@ class MainActivity : Activity() {
     private var repoFlash: String? = null
 
     private var repoSyncStatus: String? = null
+
+    private fun indexAt(y: Float): Int {
+        val group = drawerItems
+        var best = group.childCount - 1
+        for (i in 0 until group.childCount) {
+            val c = group.getChildAt(i)
+            if (c.tag == null) continue
+            val top = c.top.toFloat()
+            val bot = c.bottom.toFloat()
+            if (y < top) return i
+            if (y >= top && y < bot) return i
+            best = i
+        }
+        return best
+    }
+
+    private var draggingIndex: Int = -1
     private val pickGefRequest = 42
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -287,11 +306,12 @@ class MainActivity : Activity() {
             })
         } else {
             for (pkg in installed) {
-                drawerItems.addView(drawerItem(pkg.name, pkg.iconBitmap) {
+                drawerItems.addView(drawerItem(pkg.name, pkg.iconBitmap, dragId = pkg.id) {
                     select(Nav.Package(pkg))
                     closeDrawer()
                 })
             }
+            installDrawerDrag()
         }
         drawerItems.addView(drawerItem("设置") {
             select(Nav.Settings)
@@ -299,13 +319,65 @@ class MainActivity : Activity() {
         })
     }
 
-    private fun drawerItem(label: String, icon: Bitmap? = null, onClick: () -> Unit): View {
+    /**
+     * Long-press any package row to start a framework drag (`startDragAndDrop`,
+     * zero AndroidX); rows shift live under the finger and the resulting id
+     * order is persisted on drop. 设置 stays pinned last.
+     */
+    private fun installDrawerDrag() {
+        drawerItems.setOnDragListener { view, event ->
+            when (event.action) {
+                DragEvent.ACTION_DRAG_STARTED -> {
+                    val id = event.localState as? String ?: return@setOnDragListener false
+                    draggingIndex = (0 until drawerItems.childCount)
+                        .firstOrNull { drawerItems.getChildAt(it).tag == id } ?: -1
+                    draggingIndex >= 0
+                }
+
+                DragEvent.ACTION_DRAG_LOCATION -> {
+                    val lastPkg = (0 until drawerItems.childCount)
+                        .lastOrNull { drawerItems.getChildAt(it).tag != null } ?: -1
+                    val target = indexAt(event.y)
+                    if (target in 0..lastPkg && target != draggingIndex) {
+                        val child = drawerItems.getChildAt(draggingIndex)
+                        drawerItems.removeViewAt(draggingIndex)
+                        drawerItems.addView(child, target)
+                        draggingIndex = target
+                    }
+                    true
+                }
+
+                DragEvent.ACTION_DROP -> {
+                    val ids = (0 until drawerItems.childCount)
+                        .mapNotNull { drawerItems.getChildAt(it).tag as? String }
+                    packageOrder.reorder(ids)
+                    true
+                }
+
+                else -> true
+            }
+        }
+    }
+
+    private fun drawerItem(label: String, icon: Bitmap? = null, dragId: String? = null, onClick: () -> Unit): View {
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(24), dp(10), dp(24), dp(10))
             layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
             setOnClickListener { onClick() }
+            if (dragId != null) {
+                tag = dragId
+                isLongClickable = true
+                setOnLongClickListener { view ->
+                    view.startDragAndDrop(
+                        ClipData.newPlainText("gef", dragId),
+                        View.DragShadowBuilder(view),
+                        dragId,
+                        0,
+                    )
+                }
+            }
         }
         if (icon != null) {
             row.addView(ImageView(this).apply {
@@ -844,7 +916,7 @@ class MainActivity : Activity() {
                 setPadding(0, dp(2), 0, dp(2))
             })
         }
-        for ((index, pkg) in installed.withIndex()) {
+        for (pkg in installed) {
             val row = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
@@ -869,8 +941,6 @@ class MainActivity : Activity() {
             }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
                 setMargins(dp(4), 0, dp(4), 0)
             })
-            row.addView(moveButton("上移", index, -1, index > 0))
-            row.addView(moveButton("下移", index, +1, index < installed.size - 1))
             row.addView(Button(this).apply {
                 text = "卸载"
                 setOnClickListener { confirmUninstall(pkg) }
@@ -903,18 +973,6 @@ class MainActivity : Activity() {
             repoFlash = null
         }
     }
-
-    private fun moveButton(label: String, index: Int, delta: Int, enabled: Boolean): Button =
-        Button(this).apply {
-            text = label
-            textSize = 12f
-            isEnabled = enabled
-            setOnClickListener {
-                packageOrder.move(store.list(), index, delta)
-                repoFlash = "已调整功能包顺序"
-                showSettings()
-            }
-        }
 
     private fun pickGef() {
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
