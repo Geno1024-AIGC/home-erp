@@ -129,7 +129,10 @@ object FeaturePack {
             }
         }
         val ihdr = byteBuffer(w, h) + byteArrayOf(8, 2, 0, 0, 0)
-        return PNG_SIGNATURE + chunk("IHDR", ihdr) + chunk("IDAT", deflate(raw)) + chunk("IEND", byteArrayOf())
+        val bytes = PNG_SIGNATURE + chunk("IHDR", ihdr) + chunk("IDAT", deflate(raw)) + chunk("IEND", byteArrayOf())
+        val image = javax.imageio.ImageIO.read(bytes.inputStream())
+        check(image != null && image.width == w && image.height == h) { "generated icon is not a decodable ${w}x$h png" }
+        return bytes
     }
 
     private fun byteBuffer(vararg values: Int): ByteArray =
@@ -149,9 +152,7 @@ object FeaturePack {
             update(typeBytes)
             update(data)
         }.value
-        val head = byteBuffer(data.size)
-        val tail = byteBuffer(((crc ushr 24) and 0xFF).toInt(), ((crc ushr 16) and 0xFF).toInt(), ((crc ushr 8) and 0xFF).toInt(), (crc and 0xFF).toInt())
-        return head + typeBytes + data + tail
+        return byteBuffer(data.size) + typeBytes + data + byteBuffer(crc.toInt())
     }
 
     private fun deflate(data: ByteArray): ByteArray {

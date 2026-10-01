@@ -4,6 +4,7 @@
 /satellite/android/build/
 /star/build/
 /planet/build/
+/gefs/build/
 /swrepo/*/build/
 local.properties
 satellite/android/.cxx/
