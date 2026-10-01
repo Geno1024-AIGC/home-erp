@@ -50,7 +50,7 @@ CI（`.github/workflows/canary.yml`）在每次 push 到 `master` 时全量构�
 
 - 两个 APK 都用仓库内置的共享 debug keystore `satellite/android/signing/debug.jks`（标准 `androiddebugkey`、密码 `android`）签名，因此每次 CI 运行签名一致，Canary 更新可直接覆盖安装，无需任何 GitHub secret。将来正式版可换成 secret 签名密钥而不改动流水线。
 - App 内 **设置 → 更新**：选 更新渠道（**Canary** = pre-release，**正式版** = 正式 release——目前还没有发布过）与 更新源（GitHub 或镜像前缀 ghproxy / gh-proxy / ghfast.top），再 检查更新 与 下载并安装。
-- App 内 **设置 → 软件仓库** 可用 GEF 功能包加功能：**从发布同步功能包…** 经所选 更新源 下载 canary 中的 GEF 功能包，安装比已装更新的版本，并逐项报告 更新/已是最新/失败；每个已装包带 **上移/下移** 手动排序（抽屉按此顺序展示，新装的包默认排在末尾）。
+- App 内 **设置 → 软件仓库** 可用 GEF 功能包加功能：**从发布同步功能包…** 经所选 更新源 下载 canary 中的 GEF 功能包，安装比已装更新的版本，并逐项报告 更新/已是最新/失败。功能顺序由用户决定：长按侧边栏的功能行即可拖动排序，松手后顺序写入本地；新装的包默认排在末尾。
 - 更新元数据统一读 `api.github.com`，APK 经所选镜像前缀下载；缓存的 APK 用框架自带的 `PackageInstaller` 会话 API 安装，结果经 manifest 中的 `BroadcastReceiver` 以系统通知呈现（零 AndroidX）。详见 [satellite/android/README.md](satellite/android/README.md)。
 
 ## 版本号
