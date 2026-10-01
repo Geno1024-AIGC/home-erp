@@ -44,6 +44,7 @@ import g.erp.satellite.gef.GefRenderer
 import g.erp.satellite.gef.GefStore
 import g.erp.satellite.gef.HtmlGef
 import g.erp.satellite.gef.NativeGef
+import g.erp.satellite.gef.PackageOrder
 import g.erp.satellite.gef.RepoSync
 import g.erp.satellite.json.Json
 import g.erp.satellite.update.InstallReceiver
@@ -83,6 +84,8 @@ class MainActivity : Activity() {
     private var authUser: String? = null
 
     private val store by lazy { GefStore(this) }
+
+    private val packageOrder by lazy { PackageOrder(this) }
     private var repoFlash: String? = null
 
     private var repoSyncStatus: String? = null
@@ -274,7 +277,7 @@ class MainActivity : Activity() {
 
     private fun fillDrawerItems() {
         drawerItems.removeAllViews()
-        val installed = store.list()
+        val installed = packageOrder.apply(store.list())
         if (installed.isEmpty()) {
             drawerItems.addView(TextView(this).apply {
                 text = "未安装功能包，请到 设置 → 软件仓库 安装"
@@ -826,7 +829,7 @@ class MainActivity : Activity() {
 
     private fun buildRepoSection(col: LinearLayout) {
         col.addView(section("软件仓库"))
-        val installed = store.list()
+        val installed = packageOrder.apply(store.list())
         col.addView(TextView(this).apply {
             text = "已安装的 GEF 功能包：${installed.size}"
             textSize = 13f
@@ -841,7 +844,7 @@ class MainActivity : Activity() {
                 setPadding(0, dp(2), 0, dp(2))
             })
         }
-        for (pkg in installed) {
+        for ((index, pkg) in installed.withIndex()) {
             val row = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
@@ -866,6 +869,8 @@ class MainActivity : Activity() {
             }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
                 setMargins(dp(4), 0, dp(4), 0)
             })
+            row.addView(moveButton("上移", index, -1, index > 0))
+            row.addView(moveButton("下移", index, +1, index < installed.size - 1))
             row.addView(Button(this).apply {
                 text = "卸载"
                 setOnClickListener { confirmUninstall(pkg) }
@@ -898,6 +903,18 @@ class MainActivity : Activity() {
             repoFlash = null
         }
     }
+
+    private fun moveButton(label: String, index: Int, delta: Int, enabled: Boolean): Button =
+        Button(this).apply {
+            text = label
+            textSize = 12f
+            isEnabled = enabled
+            setOnClickListener {
+                packageOrder.move(store.list(), index, delta)
+                repoFlash = "已调整功能包顺序"
+                showSettings()
+            }
+        }
 
     private fun pickGef() {
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
