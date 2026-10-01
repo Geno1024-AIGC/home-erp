@@ -31,58 +31,6 @@ object FeaturePack {
         val add: AddSpec? = null,
     )
 
-    /** Glyph per feature on a 9x9 grid, drawn white on the accent plate. */
-    private val GLYPHS = mapOf(
-        // two people
-        "members" to listOf(
-            " ### ### ",
-            " # # # # ",
-            " # # # # ",
-            " ### ### ",
-            "         ",
-            " ####### ",
-            " ####### ",
-            " #     # ",
-            "         ",
-        ),
-        // a crate with a lid band
-        "inventory" to listOf(
-            "#########",
-            "##     ##",
-            "##     ##",
-            "#########",
-            "##     ##",
-            "##     ##",
-            "##     ##",
-            "##     ##",
-            "#########",
-        ),
-        // ascending bars
-        "finances" to listOf(
-            "       ##",
-            "       ##",
-            " ##  ##  ",
-            " ##  ##  ",
-            " ## ## ##",
-            " ## ## ##",
-            "#########",
-            "         ",
-            "         ",
-        ),
-        // a check mark
-        "chores" to listOf(
-            "        #",
-            "       # ",
-            "      #  ",
-            "#    #   ",
-            " #   #   ",
-            "  ##     ",
-            "  #      ",
-            "         ",
-            "         ",
-        ),
-    )
-
     val FEATURES = listOf(
         Feature(
             slug = "members", id = "g.sw.erp.members", name = "成员",
@@ -164,40 +112,25 @@ object FeaturePack {
     }
 
     /**
-     * Renders the feature glyph as a 64x64 antialiased PNG: a rounded accent
-     * plate with the white glyph centred on it. Drawn at [SUPERSAMPLE]x and
-     * box-filtered down, so the curves read cleanly at the drawer's 22dp.
+     * Renders the feature mark as a 64x64 antialiased PNG: a rounded accent
+     * plate with a white geometric mark on it. Every mark is composed of
+     * circles, half-discs, round-rects and round-capped capsules drawn at
+     * [SUPERSAMPLE]x and box-filtered down, so curves and diagonals stay
+     * smooth instead of stepping like a bitmap glyph.
      */
     private fun png(feature: Feature): ByteArray {
-        val glyph = GLYPHS.getValue(feature.slug)
-        val gw = glyph.maxOf { it.length }
-        val gh = glyph.size
         val w = 64
         val h = 64
         val s = SUPERSAMPLE
+        val n = w * s
 
         val plate = parseColor(feature.accent)
         val paper = WHITE // the drawer row background
-        val ink = 0xFFFFFF
+        val ink = WHITE
 
-        val n = w * s
         val big = IntArray(n * n) { paper }
         fillRoundRect(big, n, n / 24, n / 24, n - n / 24, n - n / 24, n * 4 / 16, plate)
-
-        // glyph, centred and scaled to ~60% of the plate
-        val cell = n * 60 / (100 * maxOf(gw, gh))
-        val offX = (n - cell * gw) / 2
-        val offY = (n - cell * gh) / 2
-        for ((row, line) in glyph.withIndex()) {
-            for ((col, c) in line.withIndex()) {
-                if (c != '#') continue
-                val x0 = offX + col * cell
-                val y0 = offY + row * cell
-                for (y in y0 until y0 + cell) {
-                    for (x in x0 until x0 + cell) big[y * n + x] = ink
-                }
-            }
-        }
+        drawMark(feature.slug, big, n, s, plate, ink)
 
         // box-filter down to 64x64
         val raw = ByteArray(h * (1 + w * 3))
@@ -229,6 +162,129 @@ object FeaturePack {
         return bytes
     }
 
+    /**
+     * Paints the white feature mark for [slug] over the accent plate, using a
+     * handful of primitives in 64-space coordinates. Marks never touch the
+     * plate border, so the rounded corners stay clean at the drawer's 22dp.
+     */
+    private fun drawMark(slug: String, px: IntArray, n: Int, s: Int, plate: Int, ink: Int) {
+        fun disc(cx: Float, cy: Float, r: Float, color: Int) {
+            val ax = cx * s
+            val ay = cy * s
+            val ar = r * s
+            val x0 = (ax - ar).toInt().coerceAtLeast(0)
+            val x1 = (ax + ar).toInt().coerceAtMost(n - 1)
+            val y0 = (ay - ar).toInt().coerceAtLeast(0)
+            val y1 = (ay + ar).toInt().coerceAtMost(n - 1)
+            for (y in y0..y1) {
+                for (x in x0..x1) {
+                    val dx = x + 0.5f - ax
+                    val dy = y + 0.5f - ay
+                    if (dx * dx + dy * dy <= ar * ar) px[y * n + x] = color
+                }
+            }
+        }
+
+        // upper half of a disc: the dome of a pair of shoulders
+        fun dome(cx: Float, cy: Float, r: Float, color: Int) {
+            val ax = cx * s
+            val ay = cy * s
+            val ar = r * s
+            val x0 = (ax - ar).toInt().coerceAtLeast(0)
+            val x1 = (ax + ar).toInt().coerceAtMost(n - 1)
+            val y0 = (ay - ar).toInt().coerceAtLeast(0)
+            val y1 = ay.toInt().coerceAtMost(n - 1)
+            for (y in y0..y1) {
+                if (y + 0.5f > ay) continue
+                for (x in x0..x1) {
+                    val dx = x + 0.5f - ax
+                    val dy = y + 0.5f - ay
+                    if (dx * dx + dy * dy <= ar * ar) px[y * n + x] = color
+                }
+            }
+        }
+
+        fun rrect(x0: Float, y0: Float, x1: Float, y1: Float, r: Float, color: Int) {
+            val ax0 = x0 * s
+            val ay0 = y0 * s
+            val ax1 = x1 * s
+            val ay1 = y1 * s
+            val ar = r * s
+            val px0 = ax0.toInt().coerceAtLeast(0)
+            val px1 = ax1.toInt().coerceAtMost(n - 1)
+            val py0 = ay0.toInt().coerceAtLeast(0)
+            val py1 = ay1.toInt().coerceAtMost(n - 1)
+            for (y in py0..py1) {
+                for (x in px0..px1) {
+                    val cx = x + 0.5f
+                    val cy = y + 0.5f
+                    if (cx < ax0 || cx > ax1 || cy < ay0 || cy > ay1) continue
+                    val dx = (ax0 + ar - cx).coerceAtLeast(0f).coerceAtLeast(cx - (ax1 - ar))
+                    val dy = (ay0 + ar - cy).coerceAtLeast(0f).coerceAtLeast(cy - (ay1 - ar))
+                    if (dx * dx + dy * dy <= ar * ar) px[y * n + x] = color
+                }
+            }
+        }
+
+        // round-capped stroke from (x0,y0) to (x1,y1)
+        fun capsule(x0: Float, y0: Float, x1: Float, y1: Float, w: Float, color: Int) {
+            val ax = x0 * s
+            val ay = y0 * s
+            val bx = x1 * s
+            val by = y1 * s
+            val hw = w * s / 2
+            val vx = bx - ax
+            val vy = by - ay
+            val len2 = vx * vx + vy * vy
+            val x0i = (minOf(ax, bx) - hw).toInt().coerceAtLeast(0)
+            val x1i = (maxOf(ax, bx) + hw).toInt().coerceAtMost(n - 1)
+            val y0i = (minOf(ay, by) - hw).toInt().coerceAtLeast(0)
+            val y1i = (maxOf(ay, by) + hw).toInt().coerceAtMost(n - 1)
+            for (y in y0i..y1i) {
+                for (x in x0i..x1i) {
+                    val dx = x + 0.5f - ax
+                    val dy = y + 0.5f - ay
+                    val t = if (len2 <= 0f) 0f else ((dx * vx + dy * vy) / len2).coerceIn(0f, 1f)
+                    val ex = dx - t * vx
+                    val ey = dy - t * vy
+                    if (ex * ex + ey * ey <= hw * hw) px[y * n + x] = color
+                }
+            }
+        }
+
+        fun person(headX: Float, headY: Float, headR: Float, shoulderY: Float, shoulderR: Float, color: Int) {
+            disc(headX, headY, headR, color)
+            dome(headX, shoulderY, shoulderR, color)
+        }
+
+        when (slug) {
+            // one member in front, one behind: the halo carves the separation
+            "members" -> {
+                person(43f, 23f, 6.5f, 43f, 10f, ink)
+                person(23f, 25f, 10.5f, 48f, 16f, plate)
+                person(23f, 25f, 7.5f, 48f, 12f, ink)
+            }
+            // a parcel: lid seam plus the tape strip running over the lid
+            "inventory" -> {
+                rrect(11f, 15f, 53f, 49f, 5f, ink)
+                rrect(11f, 25f, 53f, 29f, 0f, plate)
+                rrect(29f, 15f, 35f, 25f, 0f, plate)
+            }
+            // three ascending bars on a baseline
+            "finances" -> {
+                rrect(13f, 46f, 51f, 50f, 2f, ink)
+                rrect(14.5f, 35f, 23.5f, 48f, 2f, ink)
+                rrect(27.5f, 26f, 36.5f, 48f, 2f, ink)
+                rrect(40.5f, 16f, 49.5f, 48f, 2f, ink)
+            }
+            // a bold check mark
+            "chores" -> {
+                capsule(15f, 34f, 25f, 44f, 7f, ink)
+                capsule(25f, 44f, 48f, 18f, 7f, ink)
+            }
+        }
+    }
+
     /** Fills a rounded rect with a solid colour. */
     private fun fillRoundRect(px: IntArray, n: Int, x0: Int, y0: Int, x1: Int, y1: Int, r: Int, color: Int) {
         for (y in y0 until y1) {
@@ -255,7 +311,7 @@ object FeaturePack {
     }
 
     private const val WHITE = 0xFFFFFF
-    private const val SUPERSAMPLE = 4
+    private const val SUPERSAMPLE = 8
 
     private fun byteBuffer(vararg values: Int): ByteArray =
         ByteArray(values.size * 4).also { acc ->
