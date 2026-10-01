@@ -31,6 +31,58 @@ object FeaturePack {
         val add: AddSpec? = null,
     )
 
+    /** Glyph per feature on a 9x9 grid, drawn white on the accent plate. */
+    private val GLYPHS = mapOf(
+        // two people
+        "members" to listOf(
+            " ### ### ",
+            " # # # # ",
+            " # # # # ",
+            " ### ### ",
+            "         ",
+            " ####### ",
+            " ####### ",
+            " #     # ",
+            "         ",
+        ),
+        // a crate with a lid band
+        "inventory" to listOf(
+            "#########",
+            "##     ##",
+            "##     ##",
+            "#########",
+            "##     ##",
+            "##     ##",
+            "##     ##",
+            "##     ##",
+            "#########",
+        ),
+        // ascending bars
+        "finances" to listOf(
+            "       ##",
+            "       ##",
+            " ##  ##  ",
+            " ##  ##  ",
+            " ## ## ##",
+            " ## ## ##",
+            "#########",
+            "         ",
+            "         ",
+        ),
+        // a check mark
+        "chores" to listOf(
+            "        #",
+            "       # ",
+            "      #  ",
+            "#    #   ",
+            " #   #   ",
+            "  ##     ",
+            "  #      ",
+            "         ",
+            "         ",
+        ),
+    )
+
     val FEATURES = listOf(
         Feature(
             slug = "members", id = "g.sw.erp.members", name = "成员",
@@ -85,7 +137,7 @@ object FeaturePack {
                 icon = "icon.png",
                 files = linkedMapOf(
                     "index.html" to page(feature).toByteArray(Charsets.UTF_8),
-                    "icon.png" to png(feature.accent),
+                    "icon.png" to png(feature),
                 ),
             )
             val round = HtmlGef.unpack(pack)
@@ -111,21 +163,63 @@ object FeaturePack {
         return PAGE_TEMPLATE.replace("__CONFIG__", Json.write(config))
     }
 
-    /** 32x32 solid-colour truecolour PNG icon. */
-    private fun png(color: String): ByteArray {
-        val r = color.substring(1, 3).toInt(16)
-        val g = color.substring(3, 5).toInt(16)
-        val b = color.substring(5, 7).toInt(16)
-        val w = 32
-        val h = 32
+    /**
+     * Renders the feature glyph as a 64x64 antialiased PNG: a rounded accent
+     * plate with the white glyph centred on it. Drawn at [SUPERSAMPLE]x and
+     * box-filtered down, so the curves read cleanly at the drawer's 22dp.
+     */
+    private fun png(feature: Feature): ByteArray {
+        val glyph = GLYPHS.getValue(feature.slug)
+        val gw = glyph.maxOf { it.length }
+        val gh = glyph.size
+        val w = 64
+        val h = 64
+        val s = SUPERSAMPLE
+
+        val plate = parseColor(feature.accent)
+        val paper = WHITE // the drawer row background
+        val ink = 0xFFFFFF
+
+        val n = w * s
+        val big = IntArray(n * n) { paper }
+        fillRoundRect(big, n, n / 24, n / 24, n - n / 24, n - n / 24, n * 4 / 16, plate)
+
+        // glyph, centred and scaled to ~60% of the plate
+        val cell = n * 60 / (100 * maxOf(gw, gh))
+        val offX = (n - cell * gw) / 2
+        val offY = (n - cell * gh) / 2
+        for ((row, line) in glyph.withIndex()) {
+            for ((col, c) in line.withIndex()) {
+                if (c != '#') continue
+                val x0 = offX + col * cell
+                val y0 = offY + row * cell
+                for (y in y0 until y0 + cell) {
+                    for (x in x0 until x0 + cell) big[y * n + x] = ink
+                }
+            }
+        }
+
+        // box-filter down to 64x64
         val raw = ByteArray(h * (1 + w * 3))
         var i = 0
         for (y in 0 until h) {
             raw[i++] = 0
-            repeat(w) {
-                raw[i++] = r.toByte()
-                raw[i++] = g.toByte()
-                raw[i++] = b.toByte()
+            for (x in 0 until w) {
+                var sr = 0L
+                var sg = 0L
+                var sb = 0L
+                for (dy in 0 until s) {
+                    for (dx in 0 until s) {
+                        val c = big[(y * s + dy) * n + (x * s + dx)]
+                        sr += (c shr 16) and 0xFF
+                        sg += (c shr 8) and 0xFF
+                        sb += c and 0xFF
+                    }
+                }
+                val cnt = s * s
+                raw[i++] = (sr / cnt).toByte()
+                raw[i++] = (sg / cnt).toByte()
+                raw[i++] = (sb / cnt).toByte()
             }
         }
         val ihdr = byteBuffer(w, h) + byteArrayOf(8, 2, 0, 0, 0)
@@ -134,6 +228,34 @@ object FeaturePack {
         check(image != null && image.width == w && image.height == h) { "generated icon is not a decodable ${w}x$h png" }
         return bytes
     }
+
+    /** Fills a rounded rect with a solid colour. */
+    private fun fillRoundRect(px: IntArray, n: Int, x0: Int, y0: Int, x1: Int, y1: Int, r: Int, color: Int) {
+        for (y in y0 until y1) {
+            for (x in x0 until x1) {
+                val dx = when {
+                    x < x0 + r -> x0 + r - x
+                    x >= x1 - r -> x - (x1 - r - 1)
+                    else -> 0
+                }
+                val dy = when {
+                    y < y0 + r -> y0 + r - y
+                    y >= y1 - r -> y - (y1 - r - 1)
+                    else -> 0
+                }
+                val inside = dx * dx + dy * dy <= r * r + 4
+                if (inside) px[y * n + x] = color
+            }
+        }
+    }
+
+    private fun parseColor(hex: String): Int {
+        val v = hex.removePrefix("#").toLong(16)
+        return (0xFFL shl 24 or (v and 0xFFFFFF)).toInt()
+    }
+
+    private const val WHITE = 0xFFFFFF
+    private const val SUPERSAMPLE = 4
 
     private fun byteBuffer(vararg values: Int): ByteArray =
         ByteArray(values.size * 4).also { acc ->

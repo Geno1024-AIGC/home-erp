@@ -15,6 +15,11 @@ so the whole satellite feature list lives in one place.
   [VersioningPlugin](../build-logic/src/main/kotlin/g/build/versioning/VersioningPlugin.kt))
   into `manifest.json`; the satellite compares `(env, pack)` to decide whether
   an install is an update. `pack` also bumps `gefs/count.pack`.
+- Every package carries a generated `icon.png` (64×64 truecolour): a rounded
+  plate in the feature accent colour with a hand-drawn 9×9 `GLYPHS` glyph on
+  top, drawn white, 4× supersampled and box-filtered down for antialiasing.
+  The plate corners match the satellite drawer row background, so the icon
+  reads as a floating chip. No image resources, no third-party encoder.
 
 The satellite side consumes these through 设置 → 软件仓库 → 从发布同步功能包…
 (see [satellite/android](../satellite/android/README.md)).
