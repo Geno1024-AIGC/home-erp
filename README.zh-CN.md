@@ -48,7 +48,8 @@
 
 CI（`.github/workflows/canary.yml`）在每次 push 到 `master` 时全量构建（也支持 `workflow_dispatch`），并发布一个 GitHub **pre-release**（Canary），附带恒星 dist zip、debug/release APK 以及生成的 GEF 功能包（`gefs/build/gefs/*.gef`）。pre-release 只保留一个——每次运行都会先删掉旧的。
 
-- 两个 APK 都用仓库内置的共享 debug keystore `satellite/android/signing/debug.jks`（标准 `androiddebugkey`、密码 `android`）签名，因此每次 CI 运行签名一致，Canary 更新可直接覆盖安装，无需任何 GitHub secret。将来正式版可换成 secret 签名密钥而不改动流水线。
+- 两个 APK 都用**org 共享的发布 keystore** 签名（规范见上级工作区 `../RULES/KEYSTORE.md`）：CI 把 `KEYSTORE_BASE64` org secret 物化到 `$RUNNER_TEMP/keystore.jks` 后注入 Gradle 构建；本地同一套键可写进 git-ignored 的 `local.properties`。keystore 相关内容一律不入库——没有二进制、没有密码、没有别名。secret 缺失时 CI 会在删除旧 pre-release **之前**就失败，未签名的 release APK 绝不会被发布。
+- **签名切换**：`v0.1.50` 及更早的版本用的是曾放在仓库里的临时 debug key，因此**第一个用 org key 签的版本无法覆盖安装**——需要先卸载再装一次。已装的 GEF 包和设置属于本地数据，卸载会一并丢失；恒星侧数据不受影响。此后 Canary 更新恢复原地覆盖安装。
 - App 内 **设置 → 更新**：选 更新渠道（**Canary** = pre-release，**正式版** = 正式 release——目前还没有发布过）与 更新源（GitHub 或镜像前缀 ghproxy / gh-proxy / ghfast.top），再 检查更新 与 下载并安装。
 - App 内 **设置 → 软件仓库** 可用 GEF 功能包加功能：**从发布同步功能包…** 经所选 更新源 下载 canary 中的 GEF 功能包，安装比已装更新的版本，并逐项报告 更新/已是最新/失败。功能顺序由用户决定：长按侧边栏的功能行即可拖动排序，松手后顺序写入本地；新装的包默认排在末尾。
 - 更新元数据统一读 `api.github.com`，APK 经所选镜像前缀下载；缓存的 APK 用框架自带的 `PackageInstaller` 会话 API 安装，结果经 manifest 中的 `BroadcastReceiver` 以系统通知呈现（零 AndroidX）。详见 [satellite/android/README.md](satellite/android/README.md)。
