@@ -9,4 +9,5 @@ kotlin {
 
 dependencies {
     implementation(project(":swrepo:spi"))
+    implementation(project(":swrepo:auth"))
 }
