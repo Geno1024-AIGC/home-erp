@@ -10,7 +10,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageInstaller
 import android.graphics.Bitmap
-import android.graphics.Color
 import android.graphics.Typeface
 import android.net.Uri
 import android.os.Build
@@ -49,6 +48,7 @@ import g.erp.satellite.gef.NativeGef
 import g.erp.satellite.gef.PackageOrder
 import g.erp.satellite.gef.RepoSync
 import g.erp.satellite.json.Json
+import g.erp.satellite.ui.Palette
 import g.erp.satellite.update.InstallReceiver
 import g.erp.satellite.update.Updater
 import java.io.ByteArrayInputStream
@@ -87,6 +87,8 @@ class MainActivity : Activity() {
     private var authRole: String? = null
 
     private val store by lazy { GefStore(this) }
+
+    private val palette by lazy { Palette(resources.configuration) }
 
     private val packageOrder by lazy { PackageOrder(this) }
     private var repoFlash: String? = null
@@ -216,13 +218,13 @@ class MainActivity : Activity() {
 
     private fun buildUi() {
         val root = FrameLayout(this)
-        root.setBackgroundColor(Color.rgb(240, 242, 245))
+        root.setBackgroundColor(palette.background)
 
         val header = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(8), dp(12), dp(4), dp(12))
-            setBackgroundColor(Color.WHITE)
+            setBackgroundColor(palette.surface)
             addView(TextView(this@MainActivity).apply {
                 text = "☰"
                 textSize = 22f
@@ -243,7 +245,7 @@ class MainActivity : Activity() {
         root.addView(contentHost)
 
         scrim = View(this).apply {
-            setBackgroundColor(0x66000000)
+            setBackgroundColor(palette.scrim)
             alpha = 0f
             visibility = View.GONE
             setOnClickListener { closeDrawer() }
@@ -261,7 +263,7 @@ class MainActivity : Activity() {
     private fun buildDrawer(): LinearLayout {
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(Color.WHITE)
+            setBackgroundColor(palette.surface)
             elevation = dp(8).toFloat()
             setPadding(0, dp(24), 0, dp(16))
             layoutParams = FrameLayout.LayoutParams(drawerWidth.toInt(), MATCH_PARENT)
@@ -289,7 +291,7 @@ class MainActivity : Activity() {
         panel.addView(TextView(this).apply {
             text = "版本 $version"
             textSize = 12f
-            setTextColor(Color.GRAY)
+            setTextColor(palette.textSecondary)
             gravity = Gravity.CENTER_HORIZONTAL
         })
 
@@ -303,7 +305,7 @@ class MainActivity : Activity() {
             drawerItems.addView(TextView(this).apply {
                 text = "未安装功能包，请到 设置 → 软件仓库 安装"
                 textSize = 12f
-                setTextColor(Color.GRAY)
+                setTextColor(palette.textSecondary)
                 setPadding(dp(24), dp(8), dp(24), dp(8))
             })
         } else {
@@ -523,7 +525,7 @@ class MainActivity : Activity() {
             return
         }
         val bundle = (pkg as NativeGef).bundle
-        titleView.text = runCatching { GefRenderer(this, bundle, emptyMap(), {}, {}).pageTitle() }.getOrNull() ?: bundle.name
+        titleView.text = runCatching { GefRenderer(this, bundle, emptyMap(), {}, {}, palette).pageTitle() }.getOrNull() ?: bundle.name
         contentHost.removeViews(1, contentHost.childCount - 1)
         contentHost.addView(message("加载中…"))
         executor.execute {
@@ -558,11 +560,12 @@ class MainActivity : Activity() {
             contentHost.addView(TextView(this).apply {
                 text = note
                 textSize = 13f
-                setTextColor(Color.parseColor("#B3261E"))
+                setTextColor(palette.error)
                 setPadding(dp(16), dp(8), dp(16), 0)
             })
         }
         val web = WebView(this)
+        web.setBackgroundColor(palette.background)
         web.addJavascriptInterface(ErpBridge(this, web), "Erp")
         web.settings.javaScriptEnabled = true
         web.settings.domStorageEnabled = true
@@ -617,7 +620,7 @@ class MainActivity : Activity() {
             col.addView(TextView(this).apply {
                 text = note
                 textSize = 13f
-                setTextColor(Color.parseColor("#B3261E"))
+                setTextColor(palette.error)
                 setPadding(0, 0, 0, dp(8))
             })
         }
@@ -625,6 +628,7 @@ class MainActivity : Activity() {
             this, bundle, data,
             onRefresh = { showPackage(NativeGef(bundle)) },
             onPost = { path -> postPackage(bundle, path) },
+            palette = palette,
         )
         renderer.build(col)
         contentHost.addView(ScrollView(this).apply { addView(col) },
@@ -663,7 +667,7 @@ class MainActivity : Activity() {
         box.addView(TextView(this).apply {
             text = "无法连接恒星：${e.message ?: "未知错误"}"
             textSize = 14f
-            setTextColor(Color.parseColor("#B3261E"))
+            setTextColor(palette.error)
             gravity = Gravity.CENTER_HORIZONTAL
         })
         box.addView(Button(this).apply {
@@ -682,7 +686,7 @@ class MainActivity : Activity() {
         box.addView(TextView(this).apply {
             text = "该功能需要登录后使用"
             textSize = 14f
-            setTextColor(Color.GRAY)
+            setTextColor(palette.textSecondary)
             gravity = Gravity.CENTER_HORIZONTAL
         })
         box.addView(Button(this).apply {
@@ -695,7 +699,7 @@ class MainActivity : Activity() {
     private fun message(text: String): TextView = TextView(this).apply {
         this.text = text
         textSize = 14f
-        setTextColor(Color.GRAY)
+        setTextColor(palette.textSecondary)
         gravity = Gravity.CENTER
         setPadding(0, dp(48), 0, 0)
     }
@@ -718,7 +722,7 @@ class MainActivity : Activity() {
         col.addView(TextView(this).apply {
             text = "输入恒星 HTTP 地址（如 http://192.168.1.10:8080）。多个地址可在 设置 → 恒星 中管理。"
             textSize = 13f
-            setTextColor(Color.GRAY)
+            setTextColor(palette.textSecondary)
             setPadding(0, dp(6), 0, dp(16))
         })
         val input = EditText(this).apply {
@@ -804,7 +808,7 @@ class MainActivity : Activity() {
 
         val label = TextView(this).apply {
             textSize = 14f
-            setTextColor(Color.GRAY)
+            setTextColor(palette.textSecondary)
             setPadding(0, 0, 0, dp(4))
         }
         connectionLabel = label
@@ -818,7 +822,7 @@ class MainActivity : Activity() {
         col.addView(TextView(this).apply {
             text = "自动按 恒星直连 → 全部行星 顺序探测最短延迟可达的入口，在设置里可手动维护恒星地址。"
             textSize = 13f
-            setTextColor(Color.LTGRAY)
+            setTextColor(palette.textTertiary)
             setPadding(0, dp(4), 0, dp(4))
         })
 
@@ -904,14 +908,14 @@ class MainActivity : Activity() {
         col.addView(TextView(this).apply {
             text = "已安装的 GEF 功能包：${installed.size}"
             textSize = 13f
-            setTextColor(Color.GRAY)
+            setTextColor(palette.textSecondary)
             setPadding(0, 0, 0, dp(4))
         })
         if (installed.isEmpty()) {
             col.addView(TextView(this).apply {
                 text = "还没有安装任何功能包"
                 textSize = 14f
-                setTextColor(Color.GRAY)
+                setTextColor(palette.textSecondary)
                 setPadding(0, dp(2), 0, dp(2))
             })
         }
@@ -935,7 +939,7 @@ class MainActivity : Activity() {
                 addView(TextView(this@MainActivity).apply {
                     text = pkg.id + (pkg.version?.let { "  v$it" } ?: "")
                     textSize = 12f
-                    setTextColor(Color.GRAY)
+                    setTextColor(palette.textSecondary)
                 })
             }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
                 setMargins(dp(4), 0, dp(4), 0)
@@ -958,7 +962,7 @@ class MainActivity : Activity() {
             col.addView(TextView(this).apply {
                 text = status
                 textSize = 13f
-                setTextColor(if (status.startsWith("同步失败")) Color.parseColor("#E53935") else Color.parseColor("#4CAF50"))
+                setTextColor(if (status.startsWith("同步失败")) palette.failure else palette.success)
                 setPadding(0, dp(6), 0, dp(4))
             })
         }
@@ -966,7 +970,7 @@ class MainActivity : Activity() {
             col.addView(TextView(this).apply {
                 text = flash
                 textSize = 13f
-                setTextColor(Color.parseColor("#4CAF50"))
+                setTextColor(palette.success)
                 setPadding(0, dp(4), 0, 0)
             })
             repoFlash = null
@@ -1219,7 +1223,7 @@ class MainActivity : Activity() {
             }
             val status = TextView(this).apply {
                 textSize = 13f
-                setTextColor(Color.GRAY)
+                setTextColor(palette.textSecondary)
                 setPadding(0, dp(4), 0, dp(4))
             }
             col.addView(name)
@@ -1235,7 +1239,7 @@ class MainActivity : Activity() {
             col.addView(TextView(this).apply {
                 text = "第一个注册的账号自动成为管理员，之后由管理员邀请其他家庭成员。"
                 textSize = 13f
-                setTextColor(Color.LTGRAY)
+                setTextColor(palette.textTertiary)
                 setPadding(0, 0, 0, dp(4))
             })
             val newName = EditText(this).apply {
@@ -1255,7 +1259,7 @@ class MainActivity : Activity() {
             }
             val regStatus = TextView(this).apply {
                 textSize = 13f
-                setTextColor(Color.GRAY)
+                setTextColor(palette.textSecondary)
                 setPadding(0, dp(4), 0, dp(4))
             }
             col.addView(newName)
@@ -1370,7 +1374,7 @@ class MainActivity : Activity() {
     }
 
     private fun divider(): View = View(this).apply {
-        setBackgroundColor(Color.rgb(230, 232, 236))
+        setBackgroundColor(palette.divider)
         layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, 1)
         setPadding(0, dp(8), 0, dp(8))
     }

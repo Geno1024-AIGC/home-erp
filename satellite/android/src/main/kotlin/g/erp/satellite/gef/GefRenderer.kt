@@ -1,7 +1,6 @@
 package g.erp.satellite.gef
 
 import android.app.Activity
-import android.graphics.Color
 import android.graphics.Typeface
 import android.view.Gravity
 import android.view.View
@@ -11,6 +10,7 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import g.erp.satellite.json.Json
+import g.erp.satellite.ui.Palette
 
 /**
  * Renders a GEF page (UI DSL v1 subset) into a LinearLayout.
@@ -25,6 +25,7 @@ class GefRenderer(
     private val data: Map<String, Any?>,
     private val onRefresh: () -> Unit,
     private val onPost: (String) -> Unit,
+    private val palette: Palette,
 ) {
 
     fun pageTitle(): String {
@@ -68,7 +69,7 @@ class GefRenderer(
             else -> out.addView(TextView(activity).apply {
                 text = if (type == null) "[空节点]" else "[暂不支持: $type]"
                 textSize = 12f
-                setTextColor(Color.GRAY)
+                setTextColor(palette.textSecondary)
             }, matchWidth())
         }
     }
@@ -77,7 +78,7 @@ class GefRenderer(
         val static = node["text"] as? String
         text = static ?: display(bindValue(node["bind"], context))
         textSize = 15f
-        setTextColor(Color.rgb(30, 30, 30))
+        setTextColor(palette.textPrimary)
         setPadding(dp(16), dp(8), dp(16), dp(8))
     }
 
@@ -116,7 +117,7 @@ class GefRenderer(
             out.addView(TextView(activity).apply {
                 text = "暂无数据"
                 textSize = 13f
-                setTextColor(Color.GRAY)
+                setTextColor(palette.textSecondary)
                 setPadding(dp(16), dp(8), dp(16), dp(8))
             }, matchWidth())
             return
@@ -125,7 +126,7 @@ class GefRenderer(
         for (element in arr) {
             buildNode(item, mapOf("item" to element), out)
             out.addView(View(activity).apply {
-                setBackgroundColor(Color.rgb(230, 232, 236))
+                setBackgroundColor(palette.divider)
             }, LinearLayout.LayoutParams(MATCH_PARENT, 1))
         }
     }

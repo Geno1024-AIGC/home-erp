@@ -12,6 +12,7 @@ src/main/kotlin/g/erp/satellite/
 ├── StarClient.kt          # tiny HttpURLConnection GET/POST helper with bearer token (default http://10.0.2.2:8080)
 ├── Topology.kt            # star-first star/planet probing, persisted in filesDir/topology.json
 ├── json/Json.kt           # hand-rolled JSON parse/format
+├── ui/Palette.kt          # day/night colour set read from Configuration.uiMode
 ├── gef/
 │   ├── Gef.kt             # satellite port of the GEF v1 text container + GefPackage (native/html) abstraction + HTML zip parser
 │   ├── GefStore.kt        # installed packages under filesDir/gefs (v1 singles + v0.1 zip dirs)
@@ -45,6 +46,7 @@ leading bytes — a file picker accepts either `.gef`.
 - APK installation follows opencode-inspire's flow: on **API 29+** the APK is copied into public Downloads (MediaStore) and opened with `ACTION_VIEW` so the system installer shows its confirm dialog; on older devices it falls back to the framework **`PackageInstaller` session API**, with the result reported by a manifest `BroadcastReceiver` notification. No `FileProvider`, no AndroidX.
   - API 33+: asks for `POST_NOTIFICATIONS` first. API 26+: routes to the "install unknown apps" setting when needed.
 - Downloads keep the single-thread executor; a stale Star response can't overwrite the current screen (guarded by navigation identity).
+- **Dark mode follows the system** (`uiMode`), with no in-app switch. Because the whole UI is drawn in code, every colour comes from `ui/Palette.kt`, which resolves against `Configuration.UI_MODE_NIGHT_*`; the window theme comes from the resource qualifier — `values/themes.xml` stays `Theme.Material.Light.NoActionBar` and `values-night/themes.xml` uses the dark parent. `values-night-v35` exists too: `uiMode` outranks `platform version` in resource precedence, so without it a nightly Android 15+ build would lose the edge-to-edge opt-out. The activity is not declared with `configChanges="uiMode"`, so the system recreates it on a theme switch and a fresh `Palette` is built with it. v0.1 HTML packages switch through their own `@media (prefers-color-scheme: dark)` stylesheet, and the WebView background is set to the palette background so there is no white flash while the page loads.
 
 ## Signing
 
