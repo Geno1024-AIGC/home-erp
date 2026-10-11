@@ -67,7 +67,7 @@ class MainActivity : Activity() {
 
     private var baseUrl = StarClient.DEFAULT_BASE
     private lateinit var savedUrls: MutableList<String>
-    private lateinit var connectionLabel: TextView
+    private var connectionLabel: TextView? = null
 
     private sealed class Nav {
         object Settings : Nav()
@@ -804,12 +804,13 @@ class MainActivity : Activity() {
 
         col.addView(section("恒星 · 连接"))
 
-        connectionLabel = TextView(this).apply {
+        val label = TextView(this).apply {
             textSize = 14f
             setTextColor(Color.GRAY)
             setPadding(0, 0, 0, dp(4))
         }
-        col.addView(connectionLabel)
+        connectionLabel = label
+        col.addView(label)
 
         col.addView(Button(this).apply {
             text = "重新探测连接"
