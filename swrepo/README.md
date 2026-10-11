@@ -10,8 +10,8 @@ Part of [Home ERP](../README.md).
 |---|---|---|---|
 | `swrepo:spi` | `g.sw.spi` | module SPI: `ErpModule`, `MountContext`, HTTP helpers (reusable) | [spi](spi/README.md) |
 | `swrepo:relay` | `g.sw.relay` | Planet↔Star relay tunnel: frame codec, relay pool, dialing client (reusable) | [relay](relay/README.md) |
-| `swrepo:auth` | `g.sw.erp.auth` | accounts & authentication: password (PBKDF2) + SSH-key (ed25519) login | [auth](auth/README.md) |
-| `swrepo:members` | `g.sw.erp.members` | family members / users | [members](members/README.md) |
+| `swrepo:auth` | `g.sw.erp.auth` | accounts, roles & authentication: password (PBKDF2) + SSH-key (ed25519) login, persisted sessions | [auth](auth/README.md) |
+| `swrepo:members` | `g.sw.erp.members` | family roster linked to login accounts | [members](members/README.md) |
 | `swrepo:inventory` | `g.sw.erp.inventory` | household items & stock | [inventory](inventory/README.md) |
 | `swrepo:finances` | `g.sw.erp.finances` | home bills & budget | [finances](finances/README.md) |
 | `swrepo:chores` | `g.sw.erp.chores` | housework & schedule | [chores](chores/README.md) |

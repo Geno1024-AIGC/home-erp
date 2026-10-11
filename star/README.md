@@ -54,10 +54,19 @@ background supervisor keeps one relay tunnel to each registered Planet, marking 
 
 ## Endpoints (sample)
 
-| Endpoint | Description |
-|---|---|
-| `GET /api/members/family` | list family members |
-| `POST /api/members/members` | add a member |
-| `GET /api/inventory/items` | list stock items |
-| `GET /api/finances/ledger` | list ledger entries |
-| `GET /api/chores/tasks` | list chores |
+Everything except `auth`'s public endpoints and `topology` needs a bearer token
+(`Authorization: Bearer <token>`); admin-only routes additionally need the
+`admin` role. The first account to `POST /api/auth/register` becomes that admin.
+
+| Endpoint | Access | Description |
+|---|---|---|
+| `POST /api/auth/register` | public | create an account (first one is the bootstrap admin) |
+| `POST /api/auth/login` | public | sign in with password or an ed25519 SSH key |
+| `GET /api/auth/me` | signed in | the signed-in account, with its role |
+| `GET /api/auth/users` | admin | list accounts |
+| `GET /api/topology` | public | deployment address book (polled by Planets, probed by Satellites) |
+| `GET /api/members/family` | signed in | list family members |
+| `POST /api/members/members` | admin | add a member |
+| `GET /api/inventory/items` | signed in | list stock items |
+| `GET /api/finances/ledger` | signed in | list ledger entries |
+| `GET /api/chores/tasks` | signed in | list chores |

@@ -36,15 +36,16 @@ object Star {
         val connector = PlanetConnector(topology, alias, port).apply { start() }
 
         try {
+            val auth = AuthModule(db)
             assemble(
                 router,
                 listOf(
-                    AuthModule(db),
+                    auth,
                     topology,
-                    MembersModule(),
-                    InventoryModule(),
-                    FinancesModule(),
-                    ChoresModule(),
+                    MembersModule(db, auth),
+                    InventoryModule(auth),
+                    FinancesModule(auth),
+                    ChoresModule(auth),
                 ),
             )
 
