@@ -48,7 +48,23 @@ leading bytes — a file picker accepts either `.gef`.
 
 ## Signing
 
-Both `debug` and `release` build types sign with the repo-tracked `signing/debug.jks` (standard debug keystore, `androiddebugkey` / `android`), so every CI build has the **same signature** and a canary update installs over the previous one. `versionCode` = the environment sequence (`versionSeq`), strictly monotonic per release stream.
+Both `debug` and `release` use the **shared org release keystore** described by `../RULES/KEYSTORE.md` in the parent workspace. Values resolve as environment variable (CI) → git-ignored `local.properties` → default alias `geno`:
+
+| `local.properties` key | env var | default |
+|---|---|---|
+| `keystore.storeFile` | `KEYSTORE_STORE_FILE` | — (required) |
+| `keystore.storePassword` | `KEYSTORE_STORE_PASSWORD` | — (required) |
+| `keystore.keyPassword` | `KEYSTORE_KEY_PASSWORD` | store password |
+| `keystore.keyAlias` | `KEYSTORE_KEY_ALIAS` | `geno` |
+
+Nothing keystore-related is committed — no binary, no password, no alias. When the values are absent:
+
+- `debug` falls back to the AGP default `~/.android/debug.keystore`, so a local `assembleDebug` needs zero setup.
+- `release` is deliberately left **unsigned** (`android-release-unsigned.apk`). The Canary workflow never publishes it: it fails early if the `KEYSTORE_BASE64` org secret is unavailable (before deleting the previous pre-release) and separately asserts the built release APK is not `-unsigned`.
+
+`versionCode` = the environment sequence (`versionSeq`), strictly monotonic per release stream.
+
+**Signature change:** releases up to `v0.1.50` were signed with a throwaway debug keystore that used to live in this repo, so the first org-signed release **cannot install over an existing install** — uninstall once, then install. Installed GEF packages and settings are local and are lost by that uninstall; Star-side data is unaffected. Canary updates install in place from then on.
 
 ## Build
 
