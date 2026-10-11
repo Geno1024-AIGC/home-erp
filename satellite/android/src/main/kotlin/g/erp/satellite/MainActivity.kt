@@ -84,6 +84,7 @@ class MainActivity : Activity() {
 
     private var authToken: String? = null
     private var authUser: String? = null
+    private var authRole: String? = null
 
     private val store by lazy { GefStore(this) }
 
@@ -127,6 +128,7 @@ class MainActivity : Activity() {
         baseUrl = savedUrls.firstOrNull() ?: StarClient.DEFAULT_BASE
         authToken = prefs().getString("authToken", null)
         authUser = prefs().getString("authUser", null)
+        authRole = prefs().getString("authRole", null)
         current = store.list().firstOrNull()?.let { Nav.Package(it) } ?: Nav.Settings
         buildUi()
         show(current)
@@ -534,9 +536,7 @@ class MainActivity : Activity() {
                     onSuccess = { data -> renderPackage(bundle, data, note) },
                     onFailure = { e ->
                         if (e is ApiException && e.code == 401) {
-                            authToken = null
-                            authUser = null
-                            prefs().edit().remove("authToken").remove("authUser").apply()
+                            clearAuth()
                             needLoginBox()
                         } else {
                             packageErrorBox(bundle, e)
@@ -642,9 +642,7 @@ class MainActivity : Activity() {
                 if (result.isFailure && result.exceptionOrNull() is ApiException &&
                     (result.exceptionOrNull() as ApiException).code == 401
                 ) {
-                    authToken = null
-                    authUser = null
-                    prefs().edit().remove("authToken").remove("authUser").apply()
+                    clearAuth()
                     needLoginBox()
                     return@runOnUiThread
                 }
@@ -688,7 +686,7 @@ class MainActivity : Activity() {
             gravity = Gravity.CENTER_HORIZONTAL
         })
         box.addView(Button(this).apply {
-            text = "去设置登录"
+            text = "去设置登录或注册"
             setOnClickListener { select(Nav.Settings) }
         })
         contentHost.addView(box, LinearLayout.LayoutParams(MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
@@ -1199,6 +1197,13 @@ class MainActivity : Activity() {
 
     // ---------------------------------------------------------------- account
 
+    private fun clearAuth() {
+        authToken = null
+        authUser = null
+        authRole = null
+        prefs().edit().remove("authToken").remove("authUser").remove("authRole").apply()
+    }
+
     private fun buildAccountSection(col: LinearLayout) {
         col.addView(section("账号"))
         if (authToken == null) {
@@ -1222,46 +1227,52 @@ class MainActivity : Activity() {
             col.addView(status)
             col.addView(Button(this).apply {
                 text = "登录"
+                setOnClickListener { signIn(name.text.toString().trim(), pass.text.toString(), status) }
+            })
+
+            col.addView(divider())
+            col.addView(section("注册新账号"))
+            col.addView(TextView(this).apply {
+                text = "第一个注册的账号自动成为管理员，之后由管理员邀请其他家庭成员。"
+                textSize = 13f
+                setTextColor(Color.LTGRAY)
+                setPadding(0, 0, 0, dp(4))
+            })
+            val newName = EditText(this).apply {
+                hint = "用户名"
+                setSingleLine(true)
+                setInputType(android.text.InputType.TYPE_CLASS_TEXT)
+            }
+            val newPass = EditText(this).apply {
+                hint = "密码"
+                setSingleLine(true)
+                setInputType(android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD)
+            }
+            val confirm = EditText(this).apply {
+                hint = "再输一次密码"
+                setSingleLine(true)
+                setInputType(android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD)
+            }
+            val regStatus = TextView(this).apply {
+                textSize = 13f
+                setTextColor(Color.GRAY)
+                setPadding(0, dp(4), 0, dp(4))
+            }
+            col.addView(newName)
+            col.addView(newPass)
+            col.addView(confirm)
+            col.addView(regStatus)
+            col.addView(Button(this).apply {
+                text = "注册"
                 setOnClickListener {
-                    val user = name.text.toString().trim()
-                    val password = pass.text.toString()
-                    if (user.isEmpty() || password.isEmpty()) {
-                        status.text = "请输入用户名和密码"
-                        return@setOnClickListener
-                    }
-                    status.text = "登录中…"
-                    executor.execute {
-                        val result = runCatching {
-                            val body = "{\"method\":\"password\",\"username\":\"" + Json.escape(user) +
-                                "\",\"password\":\"" + Json.escape(password) + "\"}"
-                            StarClient.post(baseUrl, "/api/auth/login", body)
-                        }
-                        runOnUiThread {
-                            result.fold(
-                                onSuccess = { resp ->
-                                    val root = Json.parse(resp) as? Map<*, *>
-                                    val token = root?.get("token") as? String
-                                    val display = (root?.get("user") as? Map<*, *>)?.get("displayName") as? String ?: user
-                                    if (token == null) {
-                                        status.text = "登录响应异常，请重试"
-                                        return@fold
-                                    }
-                                    authToken = token
-                                    authUser = display
-                                    prefs().edit().putString("authToken", token).putString("authUser", display).apply()
-                                    showSettings()
-                                },
-                                onFailure = { e ->
-                                    status.text = if (e is ApiException) "登录失败：${e.message}" else "无法连接恒星：${e.message ?: "未知错误"}"
-                                },
-                            )
-                        }
-                    }
+                    signUp(newName.text.toString().trim(), newPass.text.toString(), confirm.text.toString(), regStatus)
                 }
             })
         } else {
+            val role = authRole
+            val suffix = roleLabel(role).let { if (it.isEmpty()) "" else "（$it）" }
             col.addView(TextView(this).apply {
-                text = "已登录：${authUser.orEmpty()}"
+                text = "已登录：${authUser.orEmpty()}$suffix"
                 textSize = 14f
                 setPadding(0, 0, 0, dp(4))
             })
@@ -1272,19 +1283,96 @@ class MainActivity : Activity() {
                     executor.execute {
                         runCatching { StarClient.post(baseUrl, "/api/auth/logout", "{}", token ?: "") }
                         runOnUiThread {
-                            authToken = null
-                            authUser = null
-                            prefs().edit().remove("authToken").remove("authUser").apply()
+                            clearAuth()
                             showSettings()
                         }
                     }
                 }
             })
         }
-        col.addView(View(this).apply {
-            setBackgroundColor(Color.rgb(230, 232, 236))
-            layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, 1)
-        })
+        col.addView(divider())
+    }
+
+    private fun roleLabel(role: String?): String = when (role) {
+        "admin" -> "管理员"
+        "member" -> "成员"
+        else -> role.orEmpty()
+    }
+
+    private fun signIn(user: String, password: String, status: TextView) {
+        if (user.isEmpty() || password.isEmpty()) {
+            status.text = "请输入用户名和密码"
+            return
+        }
+        status.text = "登录中…"
+        executor.execute {
+            val result = runCatching {
+                val body = "{\"method\":\"password\",\"username\":\"" + Json.escape(user) +
+                    "\",\"password\":\"" + Json.escape(password) + "\"}"
+                StarClient.post(baseUrl, "/api/auth/login", body)
+            }
+            runOnUiThread {
+                result.fold(
+                    onSuccess = { resp ->
+                        val root = Json.parse(resp) as? Map<*, *>
+                        val token = root?.get("token") as? String
+                        val account = root?.get("user") as? Map<*, *>
+                        if (token == null) {
+                            status.text = "登录响应异常，请重试"
+                            return@fold
+                        }
+                        authToken = token
+                        authUser = account?.get("displayName") as? String ?: user
+                        authRole = account?.get("role") as? String
+                        prefs().edit()
+                            .putString("authToken", token)
+                            .putString("authUser", authUser)
+                            .putString("authRole", authRole)
+                            .apply()
+                        showSettings()
+                    },
+                    onFailure = { e ->
+                        status.text = if (e is ApiException) "登录失败：${e.message}" else "无法连接恒星：${e.message ?: "未知错误"}"
+                    },
+                )
+            }
+        }
+    }
+
+    /** Registers an account, then signs straight in with it. */
+    private fun signUp(user: String, password: String, confirm: String, status: TextView) {
+        if (user.isEmpty() || password.isEmpty()) {
+            status.text = "请输入用户名和密码"
+            return
+        }
+        if (password != confirm) {
+            status.text = "两次输入的密码不一致"
+            return
+        }
+        status.text = "注册中…"
+        executor.execute {
+            val result = runCatching {
+                val body = "{\"username\":\"" + Json.escape(user) + "\",\"password\":\"" + Json.escape(password) + "\"}"
+                StarClient.post(baseUrl, "/api/auth/register", body)
+            }
+            runOnUiThread {
+                result.fold(
+                    onSuccess = {
+                        status.text = "注册成功，正在登录…"
+                        signIn(user, password, status)
+                    },
+                    onFailure = { e ->
+                        status.text = if (e is ApiException) "注册失败：${e.message}" else "无法连接恒星：${e.message ?: "未知错误"}"
+                    },
+                )
+            }
+        }
+    }
+
+    private fun divider(): View = View(this).apply {
+        setBackgroundColor(Color.rgb(230, 232, 236))
+        layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, 1)
+        setPadding(0, dp(8), 0, dp(8))
     }
 
     private fun section(text: String): TextView = TextView(this).apply {
