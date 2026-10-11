@@ -1,37 +1,57 @@
 package g.sw.erp.auth
 
+import g.sw.db.Db
 import java.security.SecureRandom
 import java.util.concurrent.ConcurrentHashMap
 
-/** In-memory login sessions and one-time SSH challenges (not persisted in 1.0). */
-object Store {
+private data class SessionRecord(val username: String, val expiresAt: Long)
 
-    private const val SESSION_TTL_MS = 7L * 24 * 3600 * 1000
-    private const val CHALLENGE_TTL_MS = 5L * 60 * 1000
-    private val random = SecureRandom()
+/**
+ * Login sessions and one-time SSH challenges.
+ *
+ * Tokens live in [Db] (collection `sessions`) so restarting the Star no longer
+ * signs everyone out. Challenges stay in memory on purpose: they are one-time,
+ * five minutes old at most, and are worthless after a restart anyway.
+ */
+class Store(private val db: Db) {
 
-    private data class Session(val username: String, val expiresAt: Long)
-
-    private val sessions = ConcurrentHashMap<String, Session>()
+    private val sessions = db.collection("sessions", SessionRecord::class.java)
     private val challenges = ConcurrentHashMap<String, Pair<String, Long>>() // username -> (challenge, expiresAt)
 
     fun issueToken(username: String): String {
+        pruneExpired()
         val token = randomToken()
-        sessions[token] = Session(username, System.currentTimeMillis() + SESSION_TTL_MS)
+        sessions.put(token, SessionRecord(username, System.currentTimeMillis() + SESSION_TTL_MS))
         return token
     }
 
     fun resolveToken(token: String): String? {
-        val session = sessions[token] ?: return null
+        if (token.isEmpty()) return null
+        val session = sessions.get(token) ?: return null
         if (session.expiresAt < System.currentTimeMillis()) {
-            sessions.remove(token)
+            sessions.delete(token)
             return null
         }
         return session.username
     }
 
     fun revokeToken(token: String) {
-        sessions.remove(token)
+        if (token.isNotEmpty()) sessions.delete(token)
+    }
+
+    /** Drops every live session of [username] — used when an account is deleted. */
+    fun revokeUserSessions(username: String) {
+        for ((token, session) in sessions.entries()) {
+            if (session?.username == username) sessions.delete(token)
+        }
+    }
+
+    /** Households are small, so a linear sweep on login is cheaper than a timer. */
+    private fun pruneExpired() {
+        val now = System.currentTimeMillis()
+        for ((token, session) in sessions.entries()) {
+            if (session != null && session.expiresAt < now) sessions.delete(token)
+        }
     }
 
     fun issueChallenge(username: String): String {
@@ -53,4 +73,10 @@ object Store {
     }
 
     private fun ByteArray.toHex(): String = joinToString("") { "%02x".format(it) }
+
+    private companion object {
+        const val SESSION_TTL_MS = 7L * 24 * 3600 * 1000
+        const val CHALLENGE_TTL_MS = 5L * 60 * 1000
+        val random = SecureRandom()
+    }
 }
