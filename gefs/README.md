@@ -15,14 +15,15 @@ so the whole satellite feature list lives in one place.
   [VersioningPlugin](../build-logic/src/main/kotlin/g/build/versioning/VersioningPlugin.kt))
   into `manifest.json`; the satellite compares `(env, pack)` to decide whether
   an install is an update. `pack` also bumps `gefs/count.pack`.
-- Every package carries a generated `icon.png` (64×64 truecolour): a rounded
+- Every package carries a generated `icon.png` (64×64, straight RGBA): a rounded
   plate in the feature accent colour with a white geometric mark on top — two
   members, a taped parcel, ascending bars, a check mark. Marks are built from
   circles, domes, round-rects and round-capped strokes in `drawMark`, drawn at
   8× supersample and box-filtered down, so curves and diagonals stay smooth
-  instead of stepping like a bitmap glyph. The plate corners match the
-  satellite drawer row background, so the icon reads as a floating chip. No
-  image resources, no third-party encoder.
+  instead of stepping like a bitmap glyph. Outside the plate the image is
+  transparent, so the same icon sits on the light *and* the dark satellite
+  drawer row and reads as a floating chip on either. No image resources, no
+  third-party encoder.
 
 The satellite side consumes these through 设置 → 软件仓库 → 从发布同步功能包…
 (see [satellite/android](../satellite/android/README.md)).

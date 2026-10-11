@@ -125,15 +125,18 @@ object FeaturePack {
         val n = w * s
 
         val plate = parseColor(feature.accent)
-        val paper = WHITE // the drawer row background
         val ink = WHITE
+        // Outside the plate the icon is transparent so it sits equally well on the
+        // light and the dark drawer. Its RGB still matches the plate, so the
+        // supersampled edge blends into the plate colour instead of darkening.
+        val paper = plate and 0x00FFFFFF
 
         val big = IntArray(n * n) { paper }
         fillRoundRect(big, n, n / 24, n / 24, n - n / 24, n - n / 24, n * 4 / 16, plate)
         drawMark(feature.slug, big, n, s, plate, ink)
 
-        // box-filter down to 64x64
-        val raw = ByteArray(h * (1 + w * 3))
+        // box-filter down to 64x64, keeping a straight (non-premultiplied) alpha channel
+        val raw = ByteArray(h * (1 + w * 4))
         var i = 0
         for (y in 0 until h) {
             raw[i++] = 0
@@ -141,9 +144,11 @@ object FeaturePack {
                 var sr = 0L
                 var sg = 0L
                 var sb = 0L
+                var sa = 0L
                 for (dy in 0 until s) {
                     for (dx in 0 until s) {
                         val c = big[(y * s + dy) * n + (x * s + dx)]
+                        sa += (c ushr 24) and 0xFF
                         sr += (c shr 16) and 0xFF
                         sg += (c shr 8) and 0xFF
                         sb += c and 0xFF
@@ -153,9 +158,10 @@ object FeaturePack {
                 raw[i++] = (sr / cnt).toByte()
                 raw[i++] = (sg / cnt).toByte()
                 raw[i++] = (sb / cnt).toByte()
+                raw[i++] = (sa / cnt).toByte()
             }
         }
-        val ihdr = byteBuffer(w, h) + byteArrayOf(8, 2, 0, 0, 0)
+        val ihdr = byteBuffer(w, h) + byteArrayOf(8, 6, 0, 0, 0)
         val bytes = PNG_SIGNATURE + chunk("IHDR", ihdr) + chunk("IDAT", deflate(raw)) + chunk("IEND", byteArrayOf())
         val image = javax.imageio.ImageIO.read(bytes.inputStream())
         check(image != null && image.width == w && image.height == h) { "generated icon is not a decodable ${w}x$h png" }
@@ -310,7 +316,8 @@ object FeaturePack {
         return (0xFFL shl 24 or (v and 0xFFFFFF)).toInt()
     }
 
-    private const val WHITE = 0xFFFFFF
+    /** Opaque white — the mark ink. Alpha matters now that the PNG carries a channel. */
+    private const val WHITE = 0xFFFFFFFF.toInt()
     private const val SUPERSAMPLE = 8
 
     private fun byteBuffer(vararg values: Int): ByteArray =
@@ -375,6 +382,17 @@ td.money.down { color: #43a047; }
 .add { display: flex; gap: 8px; }
 input { flex: 1; border: 1px solid #d1d1d6; border-radius: 8px; padding: 8px 10px; font-size: 14px; }
 .add button { background: var(--accent); color: #fff; border: 0; border-radius: 8px; padding: 8px 16px; font-size: 14px; }
+@media (prefers-color-scheme: dark) {
+  body { background: #121216; color: #ebebee; }
+  .card { background: #212126; box-shadow: none; }
+  th { color: #a1a1aa; }
+  td { border-top-color: #3a3a40; }
+  td.money.up { color: #ef8780; }
+  td.money.down { color: #81c784; }
+  .status { color: #a1a1aa; }
+  .empty { color: #7a7a82; }
+  input { background: #1b1b20; border-color: #3a3a40; color: #ebebee; }
+}
 </style>
 </head>
 <body>
