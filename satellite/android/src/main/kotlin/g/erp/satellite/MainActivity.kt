@@ -9,6 +9,7 @@ import android.content.ClipData
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageInstaller
+import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Typeface
 import android.net.Uri
@@ -113,6 +114,31 @@ class MainActivity : Activity() {
     private var draggingIndex: Int = -1
     private val pickGefRequest = 42
 
+    /**
+     * 深色模式覆盖必须在窗口主题和任何视图建立之前定下来,否则 `values-night` 已经按系统状态解析完了。
+     * 这里把偏好折进 base context 的 [Configuration.uiMode],框架随后选主题、[Palette] 取色、
+     * WebView 报 `prefers-color-scheme` 都会读到同一个值。选「跟随系统」时原样返回,不做任何改动。
+     */
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(withForcedNightMode(newBase))
+    }
+
+    private fun withForcedNightMode(base: Context): Context {
+        val night = when (nightMode(base)) {
+            MODE_LIGHT -> false
+            MODE_DARK -> true
+            else -> return base
+        }
+        val config = Configuration(base.resources.configuration)
+        config.uiMode = (config.uiMode and Configuration.UI_MODE_NIGHT_MASK.inv()) or
+            if (night) Configuration.UI_MODE_NIGHT_YES else Configuration.UI_MODE_NIGHT_NO
+        return base.createConfigurationContext(config)
+    }
+
+    private fun nightMode(context: Context): String =
+        context.getSharedPreferences("sat", Context.MODE_PRIVATE)
+            .getString("nightMode", MODE_SYSTEM) ?: MODE_SYSTEM
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         if (Build.VERSION.SDK_INT >= 33) {
@@ -131,10 +157,33 @@ class MainActivity : Activity() {
         authToken = prefs().getString("authToken", null)
         authUser = prefs().getString("authUser", null)
         authRole = prefs().getString("authRole", null)
-        current = store.list().firstOrNull()?.let { Nav.Package(it) } ?: Nav.Settings
+        current = restoredNav(savedInstanceState) ?: fallbackNav()
         buildUi()
         show(current)
         bootConnection()
+    }
+
+    /**
+     * [Activity.recreate] —— 换肤和系统主题切换都走这条 —— 与配置变更同一套流程,会先把当前屏幕存下来,
+     * 所以重建后停在原处而不是回首屏。冷启动时 `savedInstanceState` 为 null,走 [fallbackNav]。
+     */
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putString(KEY_NAV, screenId(current))
+    }
+
+    private fun restoredNav(state: Bundle?): Nav? {
+        val id = state?.getString(KEY_NAV) ?: return null
+        if (id == ID_SETTINGS) return Nav.Settings
+        return store.list().firstOrNull { it.id == id }?.let { Nav.Package(it) }
+    }
+
+    private fun fallbackNav(): Nav =
+        store.list().firstOrNull()?.let { Nav.Package(it) } ?: Nav.Settings
+
+    private fun screenId(nav: Nav): String = when (nav) {
+        Nav.Settings -> ID_SETTINGS
+        is Nav.Package -> nav.pkg.id
     }
 
     /**
@@ -896,8 +945,29 @@ class MainActivity : Activity() {
         }
         col.addView(downloadBtn)
 
+        buildAppearanceSection(col)
+
         val scroll = ScrollView(this).apply { addView(col) }
         contentHost.addView(scroll, LinearLayout.LayoutParams(MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+    }
+
+    private fun buildAppearanceSection(col: LinearLayout) {
+        col.addView(section("外观"))
+        val stored = nightMode(this)
+        col.addView(settingRow("深色模式", spinner(
+            labels = NIGHT_CHOICES.map { it.second },
+            selected = NIGHT_CHOICES.indexOfFirst { it.first == stored }.coerceAtLeast(0),
+            onSelect = { index ->
+                val value = NIGHT_CHOICES[index].first
+                // Spinner 会先带着当前值回调一次,只有真变了才换肤,否则首次布局就会 recreate。
+                if (value != nightMode(this@MainActivity)) {
+                    // 用户此刻就在设置页,存下来好让重建后停在原处而不是 onCreate 的兜底首屏。
+                    current = Nav.Settings
+                    prefs().edit().putString("nightMode", value).apply()
+                    recreate()
+                }
+            },
+        )))
     }
 
     // ---------------------------------------------------------------- software repo
@@ -1414,5 +1484,19 @@ class MainActivity : Activity() {
 
     companion object {
         private val MATCH_PARENT = ViewGroup.LayoutParams.MATCH_PARENT
+
+        private const val MODE_SYSTEM = "system"
+        private const val MODE_LIGHT = "light"
+        private const val MODE_DARK = "dark"
+
+        /** 偏好值 → 设置页文案,顺序即 Spinner 顺序。 */
+        private val NIGHT_CHOICES = listOf(
+            MODE_SYSTEM to "跟随系统",
+            MODE_LIGHT to "浅色",
+            MODE_DARK to "深色",
+        )
+
+        private const val KEY_NAV = "nav"
+        private const val ID_SETTINGS = "settings"
     }
 }
